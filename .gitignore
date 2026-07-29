@@ -8,3 +8,5 @@ Example frontend/
 frontend/node_modules/
 frontend/.next/
 frontend/dist/
+ergon.db
+*.db
