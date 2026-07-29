@@ -3,7 +3,11 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.database.base import Base
 from app.database.session import get_db
+from app.celery.app import celery_app
 from app.main import app
+
+celery_app.conf.task_always_eager = True
+celery_app.conf.task_eager_propagates = True
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

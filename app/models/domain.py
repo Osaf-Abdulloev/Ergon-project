@@ -56,6 +56,10 @@ class WorkerProfile(Base, TimestampMixin):
     worker_skills: Mapped[List["WorkerSkill"]] = relationship("WorkerSkill", back_populates="worker_profile", cascade="all, delete-orphan")
     experiences: Mapped[List["Experience"]] = relationship("Experience", back_populates="worker_profile", cascade="all, delete-orphan")
 
+    @property
+    def skills(self) -> List["Skill"]:
+        return [ws.skill for ws in self.worker_skills if ws.skill is not None]
+
 class WorkerSkill(Base):
     __tablename__ = "worker_skills"
 
