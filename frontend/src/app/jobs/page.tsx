@@ -9,7 +9,8 @@ import { JobCard } from "@/components/jobs/JobCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { Search, MapPin, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { Search, MapPin, Filter, ChevronLeft, ChevronRight, Briefcase, Zap } from "lucide-react";
 
 export default function JobsPage() {
   const { t } = useLanguage();
@@ -36,21 +37,28 @@ export default function JobsPage() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
-      <div>
-        <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-          {t("nav.jobs")}
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Ҷои кории беҳтаринро дар Тоҷикистон пайдо кунед
-        </p>
+    <div className="w-full space-y-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+            {t("nav.jobs")}
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Ҷои кории беҳтаринро дар Тоҷикистон пайдо кунед
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-[#111a2e] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+          <Briefcase className="w-4 h-4 text-blue-600 dark:text-sky-400" />
+          <span>{data?.total || 0} эълонҳои фаъол</span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="lg:col-span-1 space-y-6">
-          <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-5">
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-3">
-              <Filter className="w-4 h-4 text-indigo-500" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="p-5 border-slate-200 dark:border-slate-800 space-y-4 bg-white dark:bg-[#111a2e]">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2.5">
+              <Filter className="w-3.5 h-3.5 text-blue-600 dark:text-sky-400" />
               <span>Филтрҳо</span>
             </div>
 
@@ -59,7 +67,8 @@ export default function JobsPage() {
               placeholder="Номи кор..."
               value={title}
               onChange={(e) => { setTitle(e.target.value); setPage(1); }}
-              leftIcon={<Search className="w-4 h-4" />}
+              leftIcon={<Search className="w-3.5 h-3.5" />}
+              className="text-xs"
             />
 
             <Input
@@ -67,17 +76,18 @@ export default function JobsPage() {
               placeholder="Шаҳр..."
               value={location}
               onChange={(e) => { setLocation(e.target.value); setPage(1); }}
-              leftIcon={<MapPin className="w-4 h-4" />}
+              leftIcon={<MapPin className="w-3.5 h-3.5" />}
+              className="text-xs"
             />
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 {t("jobs.category")}
               </label>
               <select
                 value={category}
                 onChange={(e) => { setCategory(e.target.value); setPage(1); }}
-                className="w-full bg-white dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="">{t("jobs.all_categories")}</option>
                 <option value="IT & Барномасозӣ">IT & Барномасозӣ</option>
@@ -89,14 +99,14 @@ export default function JobsPage() {
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+            <div className="space-y-1">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 {t("jobs.employment_type")}
               </label>
               <select
                 value={employmentType}
                 onChange={(e) => { setEmploymentType(e.target.value); setPage(1); }}
-                className="w-full bg-white dark:bg-slate-900/80 border border-slate-300 dark:border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="">Ҳама намудҳо</option>
                 <option value="full_time">Full Time</option>
@@ -106,36 +116,37 @@ export default function JobsPage() {
                 <option value="internship">Internship</option>
               </select>
             </div>
-          </div>
+          </Card>
         </div>
 
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-4">
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <Skeleton key={i} className="h-60 w-full" />
+                <Skeleton key={i} className="h-44 w-full rounded-xl" />
               ))}
             </div>
           ) : data?.items && data.items.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {data.items.map((job) => (
                   <JobCard key={job.id} job={job} />
                 ))}
               </div>
 
               {data.pages > 1 && (
-                <div className="flex items-center justify-center gap-3 pt-6">
+                <div className="flex items-center justify-center gap-3 pt-4">
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={page === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    leftIcon={<ChevronLeft className="w-4 h-4" />}
+                    leftIcon={<ChevronLeft className="w-3.5 h-3.5" />}
+                    className="text-xs"
                   >
                     Қаблӣ
                   </Button>
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400">
+                  <span className="text-xs font-bold text-slate-500">
                     Саҳифаи {page} аз {data.pages}
                   </span>
                   <Button
@@ -143,7 +154,8 @@ export default function JobsPage() {
                     size="sm"
                     disabled={page >= data.pages}
                     onClick={() => setPage((p) => p + 1)}
-                    rightIcon={<ChevronRight className="w-4 h-4" />}
+                    rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+                    className="text-xs"
                   >
                     Баъдӣ
                   </Button>
@@ -151,9 +163,9 @@ export default function JobsPage() {
               )}
             </>
           ) : (
-            <div className="p-16 text-center rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 space-y-2">
-              <p className="text-base font-bold text-slate-700 dark:text-slate-300">Ҳеҷ эълоне пайдо нашуд</p>
-              <p className="text-xs text-slate-500">Филтрҳоро тағйир диҳед ё калидвожаи дигар ворид кунед.</p>
+            <div className="p-12 text-center rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 space-y-2">
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Ҳеҷ эълоне пайдо нашуд</p>
+              <p className="text-[11px] text-slate-500">Филтрҳоро тағйир диҳед ё калидвожаи дигар ворид кунед.</p>
             </div>
           )}
         </div>
