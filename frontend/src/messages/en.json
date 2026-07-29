@@ -1,0 +1,87 @@
+{
+  "brand": "Ergon",
+  "tagline": "AI-Powered Job Marketplace in Tajikistan",
+  "nav": {
+    "home": "Home",
+    "jobs": "Jobs",
+    "workers": "Talent",
+    "companies": "Companies",
+    "ai_assistant": "AI Assistant",
+    "chat": "Messages",
+    "dashboard": "Dashboard",
+    "favorites": "Favorites",
+    "notifications": "Notifications",
+    "profile": "Profile",
+    "settings": "Settings",
+    "login": "Sign In",
+    "register": "Sign Up",
+    "logout": "Sign Out",
+    "create_job": "Post a Job"
+  },
+  "auth": {
+    "welcome_back": "Welcome back to Ergon",
+    "login_sub": "Sign in to your account",
+    "register_title": "Join Ergon Marketplace",
+    "register_sub": "Select your role and get started",
+    "email": "Email address",
+    "password": "Password",
+    "username": "Username",
+    "phone": "Phone number",
+    "city": "City",
+    "role": "Role",
+    "worker": "Job Seeker (Talent)",
+    "employer": "Employer (Company)",
+    "company_name": "Company Name",
+    "industry": "Industry",
+    "submit_login": "Sign In",
+    "submit_register": "Sign Up",
+    "no_account": "Don't have an account?",
+    "have_account": "Already have an account?",
+    "forgot_password": "Forgot password?",
+    "reset_password": "Reset Password"
+  },
+  "jobs": {
+    "search_placeholder": "Search jobs by title or skills...",
+    "category": "Category",
+    "location": "Location",
+    "salary_range": "Salary",
+    "employment_type": "Employment Type",
+    "all_categories": "All Categories",
+    "all_locations": "All Cities",
+    "apply": "Apply Now",
+    "applied": "Applied",
+    "details": "View Details",
+    "posted_by": "Posted by",
+    "requirements": "Requirements",
+    "salary_currency": "TJS"
+  },
+  "workers": {
+    "search_placeholder": "Search candidates and skills...",
+    "desired_position": "Desired Role",
+    "desired_salary": "Expected Salary",
+    "skills": "Skills",
+    "experience": "Work Experience",
+    "contact": "Contact Talent"
+  },
+  "ai": {
+    "title": "Ergon AI Career & Hiring Assistant",
+    "placeholder": "Ask anything or request resume / candidate analysis...",
+    "quick_resume": "Analyze Resume",
+    "quick_jobs": "Find Matching Jobs",
+    "quick_candidates": "Recommend Candidates"
+  },
+  "chat": {
+    "title": "Messages & Conversations",
+    "type_message": "Type a message...",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "common": {
+    "loading": "Loading...",
+    "save": "Save Changes",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "success": "Success",
+    "error": "An error occurred"
+  }
+}

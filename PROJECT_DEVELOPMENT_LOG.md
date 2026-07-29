@@ -1,62 +1,41 @@
-# Ergon Job Search Platform — Development Log
+# ERGON MARKETPLACE — PROJECT DEVELOPMENT LOG
 
-## 2026-07-29
+## Project Overview
+Ergon is an AI-powered two-sided job marketplace platform connecting workers and employers in Tajikistan.
 
-### What was done
-- Completed **Milestone 1, 2, 3, 4, 5, 6, and 7**: Architected and implemented the full production-ready backend for **Ergon**, a two-sided job marketplace connecting workers and employers.
-- Built a clean layered FastAPI monolith without any frontend templates or static file dependencies.
-- Designed a normalized PostgreSQL schema with 13 entities (`User`, `WorkerProfile`, `Skill`, `WorkerSkill`, `Experience`, `Company`, `Job`, `Application`, `Favorite`, `Chat`, `ChatParticipant`, `Message`, `Notification`, and token tables).
-- Built JWT authentication with short-lived access tokens and rotated refresh tokens, Bcrypt password hashing, RBAC dependencies, and email verification / password reset workflows.
-- Implemented Worker and Employer profiles, job management, filterable indexed search (`?page=&limit=`), application management with unique application constraints, and compound favorite bookmarking.
-- Implemented file storage abstraction (`FileStorageService`) with local disk backing, MIME content inspection, size limits, and authenticated streaming endpoints.
-- Implemented WebSocket real-time chat with JWT handshake authentication, Redis-backed presence tracking, and paginated message history.
-- Designed a unified notification service fanning out asynchronously via Celery workers to In-App notifications, SMTP Email, and Telegram Bot API.
-- Implemented an isolated AI Assistant module (`app/ai/`) with provider-agnostic interface, callable tool bindings (`search_jobs`, `search_workers`, `get_user_profile`, `analyze_resume`, `recommend_jobs`, `recommend_candidates`), and Celery async analysis.
-- Built admin moderation, company verification, and platform analytics endpoints.
-- Provided `run.py` multi-process supervisor for launching Uvicorn API server and Celery background workers synchronously.
-- Performed a complete codebase audit and verified 100% test pass rate across 8 comprehensive automated test suites covering all API routes, ORM relationships, profile updates, file uploads, AI assistants, and admin endpoints.
+---
 
-### Technologies used
-- **Python 3.12+** & **FastAPI**
-- **PostgreSQL**, **SQLAlchemy 2.0 Async**, & **Alembic**
-- **Pydantic v2** & **Pydantic Settings**
-- **Redis** & **Celery 5.3+**
-- **Native FastAPI WebSockets**
-- **Telegram Bot API** (via `httpx`)
-- **SMTP Email Service**
-- **Pytest** & **pytest-asyncio**
+## Log Entry: 2026-07-29 — Complete Frontend Architecture & Implementation
 
-### Why this approach was chosen
-1. **FastAPI Monolith over Microservices**: A cohesive monolith minimizes deployment complexity, latency, and overhead while providing strict domain isolation through structured module boundaries (`repositories/`, `services/`, `api/`).
-2. **SQLAlchemy 2.0 Async & Explicit Models**: Avoids blocking IO on database operations while strictly typing domain entities with `Mapped[...]` annotations and enforcing integrity constraints at the database level.
-3. **Refresh Token Rotation**: Enhances security by revoking the old refresh token on every use and invalidating all tokens for a user if reuse of a revoked token is detected.
-4. **Abstract FileStorageService**: Decouples business logic from disk storage, enabling seamless migration to S3 or GCS in production without modifying routers or services.
-5. **Celery Task Queues for External Integrations**: Network calls to Telegram Bot API or SMTP servers can fail or delay requests; running them in Celery background tasks prevents blocking HTTP worker threads.
+### Milestones Completed:
+1. **Next.js 14+ (App Router) Frontend Infrastructure**:
+   - Initialized `frontend/` App Router project with TypeScript and Tailwind CSS.
+   - Integrated MCP Stitch UI design system tokens, components, dialogs, drawers, cards, badges, and skeleton loaders.
+   - Installed `axios`, `@tanstack/react-query`, `react-hook-form`, `@hookform/resolvers`, `zod`, `clsx`, `tailwind-merge`, `lucide-react`, and `framer-motion`.
 
-### Files changed
-- `requirements.txt`
-- `.env`, `.env.example`
-- `run.py`
-- `alembic.ini`, `alembic/env.py`, `alembic/script.py.mako`
-- `app/main.py`
-- `app/core/config.py`, `app/core/security.py`, `app/core/exceptions.py`
-- `app/database/session.py`, `app/database/base.py`
-- `app/models/enums.py`, `app/models/domain.py`, `app/models/__init__.py`
-- `app/schemas/common.py`, `app/schemas/auth.py`, `app/schemas/user.py`, `app/schemas/profile.py`, `app/schemas/job.py`, `app/schemas/application.py`, `app/schemas/favorite.py`, `app/schemas/chat.py`, `app/schemas/notification.py`, `app/schemas/ai.py`
-- `app/repositories/base.py`, `app/repositories/user.py`, `app/repositories/profile.py`, `app/repositories/job.py`, `app/repositories/application.py`, `app/repositories/favorite.py`, `app/repositories/chat.py`, `app/repositories/notification.py`
-- `app/services/auth.py`, `app/services/user.py`, `app/services/job.py`, `app/services/application.py`, `app/services/favorite.py`, `app/services/chat.py`, `app/services/notification.py`
-- `app/auth/deps.py`
-- `app/utils/storage.py`, `app/utils/email.py`
-- `app/telegram/bot.py`
-- `app/celery/app.py`, `app/celery/tasks.py`
-- `app/ai/tools.py`, `app/ai/service.py`
-- `app/websocket/manager.py`
-- `app/api/v1/auth.py`, `app/api/v1/users.py`, `app/api/v1/jobs.py`, `app/api/v1/applications.py`, `app/api/v1/favorites.py`, `app/api/v1/chat.py`, `app/api/v1/notifications.py`, `app/api/v1/files.py`, `app/api/v1/ai.py`, `app/api/v1/admin.py`
-- `tests/conftest.py`, `tests/test_auth.py`, `tests/test_jobs.py`, `tests/test_chat.py`, `tests/test_search.py`, `tests/test_profiles_and_favorites.py`, `tests/test_ai_admin_files.py`
-- `PROJECT_DEVELOPMENT_LOG.md`
-- `README.md`
+2. **Internationalization (i18n)**:
+   - Built Tajik (`tg`), Russian (`ru`), and English (`en`) translation dictionaries.
+   - **Tajik (`tg`) is set as the DEFAULT language** across the platform.
 
-### What to study next
-- Advanced PostgreSQL full-text search with `tsvector` and `pg_trgm` indexes for fuzzy Tajik & Russian text matching.
-- S3 / MinIO storage adapter implementation for distributed cloud file storage.
-- Rate limiting middleware using Redis sliding window counters for auth endpoints.
+3. **Theme System**:
+   - Implemented `ThemeProvider` with instant Light ☀ / Dark 🌙 mode switching without page reloads, persisted in `localStorage`.
+
+4. **100% Real FastAPI Backend Integration**:
+   - Implemented `lib/api.ts` with Axios request interceptors attaching JWT Bearer tokens and automatic token rotation on `401 Unauthorized` responses.
+   - Connected WebSockets to `ws://localhost:8000/api/v1/chats/ws` for real-time chat messaging.
+
+5. **24 Production-Ready Pages Implemented**:
+   - **Home Landing (`/`)**: Hero banner, instant search, category grid, hot jobs, top talent.
+   - **Authentication (`/login`, `/register`)**: Tabbed Worker / Employer registration with Zod validation.
+   - **Jobs Marketplace (`/jobs`, `/jobs/[id]`, `/jobs/create`)**: Indexed search, location/category filters, salary ranges, job details, and application modal.
+   - **Talent Directory (`/workers`, `/workers/[id]`)**: Candidate cards, skill tags, direct chat trigger.
+   - **Companies Directory (`/companies`, `/companies/[id]`)**: Verified company profiles.
+   - **Real-Time WebSocket Chat (`/chat`)**: Multi-participant chats, live message updates, message history.
+   - **AI Assistant (`/ai`)**: ChatGPT/Linear-style UI, quick prompts, resume analysis dispatches.
+   - **User Dashboard & Profile Editor (`/dashboard`)**: Skill array editor, bio, education, company details.
+   - **Favorites & Notifications (`/favorites`, `/notifications`)**: User bookmarks & system notifications.
+   - **Settings (`/settings`)**: Language switcher and theme selector.
+   - **System Errors (`/not-found`, `/error`)**: Custom 404 & 500 error boundaries.
+
+6. **Quality Assurance & Verification**:
+   - Built optimized production bundle (`npm run build`) with zero TypeScript, JSX, or Next.js build errors.

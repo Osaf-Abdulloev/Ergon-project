@@ -1,0 +1,87 @@
+{
+  "brand": "Ergon",
+  "tagline": "Умная платформа поиска работы в Таджикистане",
+  "nav": {
+    "home": "Главная",
+    "jobs": "Вакансии",
+    "workers": "Специалисты",
+    "companies": "Компании",
+    "ai_assistant": "ИИ Ассистент",
+    "chat": "Сообщения",
+    "dashboard": "Кабинет",
+    "favorites": "Избранное",
+    "notifications": "Уведомления",
+    "profile": "Профиль",
+    "settings": "Настройки",
+    "login": "Войти",
+    "register": "Регистрация",
+    "logout": "Выйти",
+    "create_job": "Разместить вакансию"
+  },
+  "auth": {
+    "welcome_back": "Добро пожаловать в Ergon",
+    "login_sub": "Войдите в свой аккаунт",
+    "register_title": "Присоединяйтесь к Ergon",
+    "register_sub": "Выберите роль и начните работу",
+    "email": "Электронная почта",
+    "password": "Пароль",
+    "username": "Имя пользователя",
+    "phone": "Телефон",
+    "city": "Город",
+    "role": "Роль",
+    "worker": "Соискатель (Специалист)",
+    "employer": "Работодатель (Компания)",
+    "company_name": "Название компании",
+    "industry": "Отрасль",
+    "submit_login": "Войти",
+    "submit_register": "Зарегистрироваться",
+    "no_account": "Нет аккаунта?",
+    "have_account": "Уже есть аккаунт?",
+    "forgot_password": "Забыли пароль?",
+    "reset_password": "Сброс пароля"
+  },
+  "jobs": {
+    "search_placeholder": "Поиск вакансий по названию или навыкам...",
+    "category": "Категория",
+    "location": "Локация",
+    "salary_range": "Зарплата",
+    "employment_type": "Тип занятости",
+    "all_categories": "Все категории",
+    "all_locations": "Все города",
+    "apply": "Откликнуться",
+    "applied": "Отклик отправлен",
+    "details": "Подробнее",
+    "posted_by": "Опубликовано",
+    "requirements": "Требования",
+    "salary_currency": "Сомони"
+  },
+  "workers": {
+    "search_placeholder": "Поиск специалистов и навыков...",
+    "desired_position": "Желаемая должность",
+    "desired_salary": "Желаемая зарплата",
+    "skills": "Навыки",
+    "experience": "Опыт работы",
+    "contact": "Связаться"
+  },
+  "ai": {
+    "title": "ИИ Карьерный Ассистент Ergon",
+    "placeholder": "Задайте вопрос или попросите помощь...",
+    "quick_resume": "Анализ резюме",
+    "quick_jobs": "Подобрать вакансии",
+    "quick_candidates": "Рекомендовать кандидатов"
+  },
+  "chat": {
+    "title": "Сообщения и чаты",
+    "type_message": "Введите сообщение...",
+    "online": "В сети",
+    "offline": "Не в сети"
+  },
+  "common": {
+    "loading": "Загрузка...",
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "success": "Успешно",
+    "error": "Произошла ошибка"
+  }
+}
