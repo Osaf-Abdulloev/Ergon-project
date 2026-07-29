@@ -6,12 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Company } from "@/types";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Building2, ShieldCheck, Globe, MapPin } from "lucide-react";
+import { Building2, ShieldCheck } from "lucide-react";
 
 export default function CompanyDetailPage() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params?.id as string;
 
   const { data: company, isLoading } = useQuery({
     queryKey: ["company-detail", id],

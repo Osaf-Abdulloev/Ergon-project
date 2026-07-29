@@ -4,7 +4,6 @@ import { QueryProvider } from "@/providers/QueryProvider";
 import { LanguageProvider } from "@/providers/LanguageProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { Header } from "@/components/layout/Header";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Footer } from "@/components/layout/Footer";
 
@@ -16,16 +15,15 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="tg" className="dark" suppressHydrationWarning>
-      <body className="bg-[#faf8ff] dark:bg-[#020617] text-slate-900 dark:text-slate-100 antialiased selection:bg-[#0052ff] selection:text-white flex flex-col min-h-screen">
+      <body className="bg-slate-50 dark:bg-[#070b15] text-slate-900 dark:text-slate-100 antialiased selection:bg-blue-600 selection:text-white min-h-screen">
         <QueryProvider>
           <LanguageProvider>
             <ThemeProvider>
               <AuthProvider>
-                <div className="flex flex-col min-h-screen">
-                  <Header />
+                <div className="min-h-screen flex flex-col">
                   <Sidebar />
-                  <div className="flex-1 lg:ml-[320px] transition-all duration-300">
-                    <main className="flex-grow min-h-[80vh]">{children}</main>
+                  <div className="flex-1 md:ml-60 pt-14 md:pt-0 transition-all">
+                    <main className="min-h-[85vh] p-4 sm:p-6 lg:p-8">{children}</main>
                     <Footer />
                   </div>
                 </div>

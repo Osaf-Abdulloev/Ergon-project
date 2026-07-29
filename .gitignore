@@ -1,11 +1,10 @@
-__pycache__/
+.venv
+__pycache__
 *.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-*.db
-*.sqlite3
+.pytest_cache
 uploads/
 .env
-.venv/
-venv/
+Example frontend/
+frontend/node_modules/
+frontend/.next/
+frontend/dist/

@@ -11,10 +11,11 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { User, MapPin, Briefcase, MessageSquare, GraduationCap, Award } from "lucide-react";
+import { MapPin, MessageSquare, Award } from "lucide-react";
 
 export default function WorkerDetailPage() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params?.id as string;
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();

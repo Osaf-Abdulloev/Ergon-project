@@ -27,22 +27,22 @@ export const JobCard = ({ job, isFavorite = false, onToggleFavorite }: JobCardPr
   };
 
   return (
-    <Card hoverable className="group relative flex flex-col justify-between h-full border-slate-200/80 dark:border-slate-800/80">
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-lg shadow-sm">
+    <Card hoverable className="group relative flex flex-col justify-between h-full p-4 border-slate-200 dark:border-slate-800">
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-slate-800 border border-blue-200/50 dark:border-slate-700/50 flex items-center justify-center text-blue-600 dark:text-sky-400 font-bold text-sm shrink-0">
               {job.company?.logo_url ? (
-                <img src={job.company.logo_url} alt={job.company.company_name} className="w-full h-full object-cover rounded-2xl" />
+                <img src={job.company.logo_url} alt={job.company.company_name} className="w-full h-full object-cover rounded-lg" />
               ) : (
-                <Building2 className="w-6 h-6" />
+                <Building2 className="w-4.5 h-4.5" />
               )}
             </div>
             <div>
-              <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1">
+              <h3 className="font-bold text-xs text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-sky-400 transition-colors line-clamp-1">
                 {job.title}
               </h3>
-              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <p className="text-[11px] text-slate-500 font-medium">
                 {job.company?.company_name || "Company"}
               </p>
             </div>
@@ -51,45 +51,44 @@ export const JobCard = ({ job, isFavorite = false, onToggleFavorite }: JobCardPr
           {onToggleFavorite && (
             <button
               onClick={() => onToggleFavorite(job.id)}
-              className={`p-2 rounded-xl border transition-colors ${
+              className={`p-1.5 rounded-lg border transition-colors ${
                 isFavorite
-                  ? "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/60 text-rose-500"
-                  : "bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  ? "bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800 text-rose-500"
+                  : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
               }`}
             >
-              <Bookmark className={`w-4 h-4 ${isFavorite ? "fill-rose-500" : ""}`} />
+              <Bookmark className={`w-3.5 h-3.5 ${isFavorite ? "fill-rose-500" : ""}`} />
             </button>
           )}
         </div>
 
-        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+        <p className="text-[11px] text-slate-600 dark:text-slate-300 line-clamp-2 leading-snug">
           {job.description}
         </p>
 
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Badge variant={typeVariants[job.employment_type] || "neutral"}>
-            <Clock className="w-3 h-3" />
-            <span className="capitalize">{job.employment_type.replace("_", " ")}</span>
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+          <Badge variant={typeVariants[job.employment_type] || "neutral"} size="sm">
+            <Clock className="w-2.5 h-2.5" />
+            <span className="capitalize text-[10px]">{job.employment_type.replace("_", " ")}</span>
           </Badge>
 
-          <Badge variant="info">
-            <MapPin className="w-3 h-3" />
-            <span>{job.location}</span>
+          <Badge variant="info" size="sm">
+            <MapPin className="w-2.5 h-2.5" />
+            <span className="text-[10px]">{job.location}</span>
           </Badge>
         </div>
       </div>
 
-      <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-sm font-bold text-emerald-600 dark:text-emerald-400">
-          <Banknote className="w-4 h-4" />
+      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+          <Banknote className="w-3.5 h-3.5" />
           <span>
-            {job.salary_min ? `${job.salary_min.toLocaleString()} ${job.currency}` : "Agreeable"}
-            {job.salary_max ? ` - ${job.salary_max.toLocaleString()}` : ""}
+            {job.salary_min ? `${job.salary_min.toLocaleString()} ${job.currency}` : "Договорная"}
           </span>
         </div>
 
         <Link href={`/jobs/${job.id}`}>
-          <Button variant="primary" size="sm">
+          <Button variant="primary" size="sm" className="text-[11px] py-1 px-2.5">
             {t("jobs.details")}
           </Button>
         </Link>
