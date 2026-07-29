@@ -15,6 +15,8 @@ celery_app.conf.update(
     enable_utc=True,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
+    broker_connection_retry_on_startup=True,
+    broker_connection_max_retries=3,
     task_routes={
         "app.celery.tasks.send_email_task": {"queue": "notifications"},
         "app.celery.tasks.send_telegram_task": {"queue": "notifications"},
