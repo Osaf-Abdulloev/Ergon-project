@@ -14,7 +14,7 @@ import { WorkerCard } from "@/components/workers/WorkerCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
   Sparkles, Search, MapPin, Briefcase, TrendingUp,
-  Building2, Users, ShieldCheck, ArrowRight
+  Building2, ArrowRight, ShieldCheck
 } from "lucide-react";
 
 export default function HomePage() {
@@ -48,68 +48,66 @@ export default function HomePage() {
   };
 
   const categories = [
-    { title: "IT & Барномасозӣ", count: "120+", icon: Briefcase, color: "from-blue-500 to-indigo-600" },
-    { title: "Молия ва Банк", count: "80+", icon: TrendingUp, color: "from-emerald-500 to-teal-600" },
-    { title: "Сохтмон ва Муҳандисӣ", count: "150+", icon: Building2, color: "from-amber-500 to-orange-600" },
-    { title: "Тандурустӣ ва Тиб", count: "65+", icon: ShieldCheck, color: "from-rose-500 to-pink-600" },
+    { title: "IT & Барномасозӣ", count: "120+", icon: Briefcase, color: "bg-[#0052ff]" },
+    { title: "Молия ва Банк", count: "80+", icon: TrendingUp, color: "bg-[#10b981]" },
+    { title: "Сохтмон ва Муҳандисӣ", count: "150+", icon: Building2, color: "bg-[#bf3003]" },
+    { title: "Тандурустӣ ва Тиб", count: "65+", icon: ShieldCheck, color: "bg-[#003ec7]" },
   ];
 
   return (
-    <div className="space-y-20 pb-16">
-      <section className="relative pt-12 pb-20 overflow-hidden">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] bg-gradient-to-tr from-indigo-500/20 via-purple-500/20 to-pink-500/20 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 space-y-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-950/40 backdrop-blur-md text-xs font-bold text-indigo-600 dark:text-indigo-300">
-            <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
-            <span>Платформаи зеҳнии насли нав дар Тоҷикистон</span>
+    <div className="space-y-16 pb-16 pt-6">
+      <section className="relative pt-8 pb-16 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+        <div className="text-center space-y-6 relative z-10">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[#0052ff]/30 bg-[#0052ff]/10 text-xs font-bold text-[#0052ff] dark:text-[#6cf8bb]">
+            <Sparkles className="w-4 h-4 text-[#0052ff] dark:text-[#6cf8bb] animate-pulse" />
+            <span>Stitch Design System — Ergon Marketplace</span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-slate-900 dark:text-white max-w-4xl mx-auto leading-tight">
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white max-w-3xl mx-auto leading-tight">
             Ояндаи кори худро бо{" "}
-            <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+            <span className="text-[#0052ff] dark:text-[#6cf8bb]">
               Ergon AI
             </span>{" "}
             пайдо кунед
           </h1>
 
-          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
-            {t("tagline")}. Ҷойҳои кории беҳтарин ва мутахассисони касбиро дар Душанбе, Хҷаанд ва тамоми кишвар пайваст мекунем.
+          <p className="text-base text-slate-600 dark:text-slate-300 max-w-xl mx-auto">
+            {t("tagline")}. Платформаи дутарафа барои мутахассисон ва корфармоён дар Тоҷикистон.
           </p>
 
-          <form onSubmit={handleSearchSubmit} className="max-w-3xl mx-auto p-3 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 shadow-2xl backdrop-blur-xl flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
+          <form onSubmit={handleSearchSubmit} className="max-w-3xl mx-auto p-2 rounded-2xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 shadow-[0px_12px_32px_rgba(0,0,0,0.08)] flex flex-col sm:flex-row items-center gap-2">
+            <div className="flex-1 w-full">
               <Input
                 placeholder={t("jobs.search_placeholder")}
                 value={searchTitle}
                 onChange={(e) => setSearchTitle(e.target.value)}
-                leftIcon={<Search className="w-4 h-4" />}
+                leftIcon={<Search className="w-4 h-4 text-[#0052ff]" />}
                 className="border-0 bg-transparent shadow-none"
               />
             </div>
-            <div className="w-full sm:w-48 border-t sm:border-t-0 sm:border-l border-slate-200 dark:border-slate-800">
+            <div className="w-full sm:w-56 border-t sm:border-t-0 sm:border-l border-slate-200 dark:border-slate-800">
               <Input
                 placeholder="Душанбе, Хуҷанд..."
                 value={searchLocation}
                 onChange={(e) => setSearchLocation(e.target.value)}
-                leftIcon={<MapPin className="w-4 h-4" />}
+                leftIcon={<MapPin className="w-4 h-4 text-[#0052ff]" />}
                 className="border-0 bg-transparent shadow-none"
               />
             </div>
-            <Button type="submit" variant="gradient" size="lg" className="w-full sm:w-auto">
+            <Button type="submit" variant="primary" size="lg" className="w-full sm:w-auto bg-[#0052ff] hover:bg-[#003ec7]">
               Ҷустуҷӯ
             </Button>
           </form>
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
               Категорияҳои маъмул
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500">
               Соҳаи дилхоҳи худро интихоб намоед
             </p>
           </div>
@@ -120,14 +118,14 @@ export default function HomePage() {
             const Icon = cat.icon;
             return (
               <Link key={idx} href={`/jobs?category=${encodeURIComponent(cat.title)}`}>
-                <div className="p-6 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800/80 hover:border-indigo-500/50 transition-all duration-300 group shadow-lg hover:-translate-y-1">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-tr ${cat.color} flex items-center justify-center text-white mb-4 shadow-md group-hover:scale-110 transition-transform`}>
-                    <Icon className="w-6 h-6" />
+                <div className="p-5 rounded-xl bg-white dark:bg-[#131b2e] border border-slate-200 dark:border-slate-800 hover:border-[#0052ff] transition-all duration-200 group shadow-sm hover:-translate-y-1">
+                  <div className={`w-10 h-10 rounded-lg ${cat.color} flex items-center justify-center text-white mb-3 shadow-md group-hover:scale-105 transition-transform`}>
+                    <Icon className="w-5 h-5" />
                   </div>
-                  <h3 className="font-bold text-base text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 group-hover:text-[#0052ff] transition-colors">
                     {cat.title}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">{cat.count} эълонҳо</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{cat.count} эълонҳо</p>
                 </div>
               </Link>
             );
@@ -135,14 +133,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
               Ҷойҳои кории навтарин
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Эълонҳои фаъол аз ширкатҳои пешрафта
+            <p className="text-xs text-slate-500">
+              Эълонҳои фаъол аз ширкатҳои муътамад
             </p>
           </div>
           <Link href="/jobs">
@@ -165,19 +163,19 @@ export default function HomePage() {
             ))}
           </div>
         ) : (
-          <div className="p-12 text-center rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50">
+          <div className="p-12 text-center rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50">
             <p className="text-sm font-semibold text-slate-500">Дар ҳоли ҳозир эълони фаъол пайдо нашуд.</p>
           </div>
         )}
       </section>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
               Мутахассисони пешқадам
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500">
               Номзадҳо барои ҳамкорӣ ва истихдор
             </p>
           </div>
@@ -201,7 +199,7 @@ export default function HomePage() {
             ))}
           </div>
         ) : (
-          <div className="p-12 text-center rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50">
+          <div className="p-12 text-center rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50">
             <p className="text-sm font-semibold text-slate-500">Мутахассисон пайдо нашуданд.</p>
           </div>
         )}
