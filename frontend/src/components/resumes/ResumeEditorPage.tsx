@@ -7,6 +7,8 @@ import { Resume, ResumeContent, WorkExperienceItem, EducationItem, LanguageItem,
 import { resumeService } from '../../services/resumeService';
 import { ResumePreviewCard } from './ResumePreviewCard';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { cleanText } from '../../utils/cleanText';
+
 
 interface ResumeEditorPageProps {
   resumeId: string;
@@ -610,7 +612,7 @@ export const ResumeEditorPage: React.FC<ResumeEditorPageProps> = ({ resumeId, in
                         <label className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Обязанности (через новую строку)</label>
                         <textarea
                           rows={3}
-                          value={(item.responsibilities || []).join('\n')}
+                          value={(item.responsibilities || []).map((r) => cleanText(r)).filter((r) => r.length > 0).join('\n')}
                           onChange={(e) => updateExperienceItem(item.id, 'responsibilities', e.target.value.split('\n'))}
                           placeholder="Каждая обязанность с новой строки..."
                           className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-medium outline-none focus:border-indigo-500"
@@ -618,6 +620,7 @@ export const ResumeEditorPage: React.FC<ResumeEditorPageProps> = ({ resumeId, in
                       </div>
                     </div>
                   ))}
+
                 </div>
               </div>
             )}

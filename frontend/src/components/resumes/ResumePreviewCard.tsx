@@ -1,6 +1,7 @@
 import React from 'react';
 import { Mail, Phone, MapPin, Globe, Linkedin, Github, Briefcase, GraduationCap, Award, Code, CheckCircle2, User } from 'lucide-react';
 import { ResumeContent } from '../../types/resume';
+import { cleanText } from '../../utils/cleanText';
 
 interface ResumePreviewCardProps {
   content: ResumeContent;
@@ -20,6 +21,8 @@ export const ResumePreviewCard: React.FC<ResumePreviewCardProps> = ({ content, t
   const projects = content?.projects || [];
   const social = content?.social_links || {};
   const custom = content?.custom_sections || [];
+
+  const cleanedSummary = cleanText(p.summary);
 
   return (
     <div className={`shadow-xl rounded-2xl overflow-hidden border transition-all ${isPrintMode ? 'p-8 max-w-none shadow-none rounded-none border-none bg-white text-slate-900' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border-slate-200/80 dark:border-slate-700 p-6 sm:p-8 max-w-3xl mx-auto'}`}>
@@ -84,10 +87,10 @@ export const ResumePreviewCard: React.FC<ResumePreviewCardProps> = ({ content, t
         </div>
 
         {/* Summary */}
-        {p.summary && (
+        {cleanedSummary && (
           <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
             <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-wrap">
-              {p.summary}
+              {cleanedSummary}
             </p>
           </div>
         )}
@@ -104,40 +107,50 @@ export const ResumePreviewCard: React.FC<ResumePreviewCardProps> = ({ content, t
             </h2>
 
             <div className="space-y-4 pt-1">
-              {exp.map((item) => (
-                <div key={item.id} className="space-y-1.5 relative pl-4 border-l-2 border-indigo-200 dark:border-indigo-800">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">{item.position}</h3>
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 rounded-md">
-                      {item.start_date} — {item.is_current ? 'По настоящее время' : (item.end_date || 'Н.В.')}
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
-                    <span>{item.company_name}</span>
-                    {item.location && <span className="text-slate-400">• {item.location}</span>}
-                  </div>
+              {exp.map((item) => {
+                const cleanedResp = (item.responsibilities || [])
+                  .map((r) => cleanText(r))
+                  .filter((r) => r.length > 0);
+                const cleanedAch = (item.achievements || [])
+                  .map((a) => cleanText(a))
+                  .filter((a) => a.length > 0);
 
-                  {item.responsibilities && item.responsibilities.length > 0 && (
-                    <ul className="list-disc list-inside text-xs text-slate-700 dark:text-slate-300 space-y-1 font-medium pt-1">
-                      {item.responsibilities.map((resp, idx) => (
-                        <li key={idx} className="leading-relaxed">{resp}</li>
-                      ))}
-                    </ul>
-                  )}
+                return (
+                  <div key={item.id} className="space-y-1.5 relative pl-4 border-l-2 border-indigo-200 dark:border-indigo-800">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-black text-slate-900 dark:text-slate-100">{cleanText(item.position) || 'Специалист'}</h3>
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 rounded-md">
+                        {item.start_date} — {item.is_current ? 'По настоящее время' : (item.end_date || 'Н.В.')}
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                      <span>{cleanText(item.company_name) || 'Компания'}</span>
+                      {item.location && <span className="text-slate-400">• {item.location}</span>}
+                    </div>
 
-                  {item.achievements && item.achievements.length > 0 && (
-                    <div className="pt-1">
-                      <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400">Достижения:</span>
-                      <ul className="list-disc list-inside text-xs text-slate-700 dark:text-slate-300 space-y-0.5 font-medium">
-                        {item.achievements.map((ach, idx) => (
-                          <li key={idx} className="leading-relaxed text-emerald-900 dark:text-emerald-300">{ach}</li>
+                    {cleanedResp.length > 0 && (
+                      <ul className="list-disc list-inside text-xs text-slate-700 dark:text-slate-300 space-y-1 font-medium pt-1">
+                        {cleanedResp.map((resp, idx) => (
+                          <li key={idx} className="leading-relaxed">{resp}</li>
                         ))}
                       </ul>
-                    </div>
-                  )}
-                </div>
-              ))}
+                    )}
+
+                    {cleanedAch.length > 0 && (
+                      <div className="pt-1">
+                        <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400">Достижения:</span>
+                        <ul className="list-disc list-inside text-xs text-slate-700 dark:text-slate-300 space-y-0.5 font-medium">
+                          {cleanedAch.map((ach, idx) => (
+                            <li key={idx} className="leading-relaxed text-emerald-900 dark:text-emerald-300">{ach}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+
           </section>
         )}
 

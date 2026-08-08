@@ -7,6 +7,39 @@ logger = logging.getLogger(__name__)
 
 class CVParserService:
     @staticmethod
+    def clean_extracted_text(text: str) -> str:
+        """
+        Strips PDF stream headers, binary artifacts, and unprintable binary noise from text.
+        """
+        if not text:
+            return ""
+        
+        import re
+        pdf_markers = [
+            r'<<.*?>>', r'/Length\s+\d+', r'/Filter\s*/FlateDecode', r'FlateDecode',
+            r'/MediaBox\s*\[.*?\]', r'/Parent\s+\d+\s+\d+\s+R', r'/Type\s*/\w+',
+            r'/Font\s*<<.*?>>', r'%PDF-\d\.\d', r'endobj', r'stream', r'endstream'
+        ]
+        cleaned = text
+        for pattern in pdf_markers:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+            
+        lines = []
+        for line in cleaned.splitlines():
+            line_str = line.strip()
+            if not line_str or '<</Length' in line_str or '/FlateDecode' in line_str or 'Filter/FlateDecode' in line_str:
+                continue
+            
+            # Count readable characters vs binary symbols
+            readable_count = sum(1 for c in line_str if c.isalnum() or c in [' ', '.', ',', '-', ':', '(', ')', '@', '+', '/'])
+            if len(line_str) > 5 and (readable_count / len(line_str)) < 0.4:
+                continue
+                
+            lines.append(line_str)
+            
+        return "\n".join(lines).strip()
+
+    @staticmethod
     def extract_text_from_file_bytes(file_bytes: bytes, filename: str, mime_type: str = "") -> str:
         """
         Extract clean text content from PDF, DOCX, DOC, or TXT file bytes.
@@ -20,13 +53,11 @@ class CVParserService:
         elif ext in [".txt", ".text", ".md", ".log"] or "text/plain" in mime_type:
             return CVParserService._extract_from_txt(file_bytes)
         elif ext == ".doc" or "msword" in mime_type:
-            # Fallback for legacy .doc files: try plain text decoding or docx
             try:
                 return CVParserService._extract_from_docx(file_bytes)
             except Exception:
                 return CVParserService._extract_from_txt(file_bytes)
         else:
-            # General fallback: attempt UTF-8 plain text extraction
             return CVParserService._extract_from_txt(file_bytes)
 
     @staticmethod
@@ -40,13 +71,26 @@ class CVParserService:
                 if page_text and page_text.strip():
                     text_parts.append(page_text.strip())
             extracted = "\n\n".join(text_parts)
-            if extracted.strip():
-                return extracted.strip()
-            raise ValueError("Empty or unreadable PDF text")
+            cleaned = CVParserService.clean_extracted_text(extracted)
+            if cleaned.strip():
+                return cleaned.strip()
         except Exception as e:
-            logger.warning(f"pypdf extraction failed or empty: {e}")
-            # Try raw fallback
-            return CVParserService._extract_from_txt(file_bytes)
+            logger.warning(f"pypdf extraction failed: {e}")
+
+        # Fallback to pdfplumber if available
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                parts = [page.extract_text() for page in pdf.pages if page.extract_text()]
+                extracted = "\n\n".join(parts)
+                cleaned = CVParserService.clean_extracted_text(extracted)
+                if cleaned.strip():
+                    return cleaned.strip()
+        except Exception:
+            pass
+
+        # NEVER fall back to raw binary decoding for PDFs!
+        return ""
 
     @staticmethod
     def _extract_from_docx(file_bytes: bytes) -> str:
@@ -55,7 +99,6 @@ class CVParserService:
             doc = docx.Document(io.BytesIO(file_bytes))
             paragraphs = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
             
-            # Also extract text from tables if any
             for table in doc.tables:
                 for row in table.rows:
                     row_cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
@@ -63,22 +106,23 @@ class CVParserService:
                         paragraphs.append(" | ".join(row_cells))
 
             extracted = "\n".join(paragraphs)
-            if extracted.strip():
-                return extracted.strip()
+            cleaned = CVParserService.clean_extracted_text(extracted)
+            if cleaned.strip():
+                return cleaned.strip()
             raise ValueError("Empty DOCX document")
         except Exception as e:
             logger.warning(f"python-docx extraction failed: {e}")
-            return CVParserService._extract_from_txt(file_bytes)
+            return ""
 
     @staticmethod
     def _extract_from_txt(file_bytes: bytes) -> str:
-        for encoding in ["utf-8", "utf-8-sig", "windows-1251", "cp1251", "latin-1"]:
+        for encoding in ["utf-8", "utf-8-sig", "windows-1251", "cp1251"]:
             try:
                 text = file_bytes.decode(encoding)
-                # Remove unprintable garbage characters
-                clean = "".join(c for c in text if c.isprintable() or c in ["\n", "\r", "\t"])
-                if clean.strip():
-                    return clean.strip()
+                cleaned = CVParserService.clean_extracted_text(text)
+                if cleaned.strip():
+                    return cleaned.strip()
             except UnicodeDecodeError:
                 continue
-        return file_bytes.decode("utf-8", errors="ignore").strip()
+        return ""
+
