@@ -25,15 +25,15 @@ class ResumeAIService:
         user_city = (user_profile or {}).get("city") or "Душанбе"
 
         system_prompt = (
-            "You are a world-class AI Principal Resume Architect and Senior Recruiter.\n"
-            "Your mission is to perform a MAXIMUM-DEPTH EXTRACTION of the candidate's CV text. Extract EVERY SINGLE detail, skill, technology, framework, database, tool, job, company, achievement, responsibility, education item, certificate, project, and link.\n\n"
-            "MANDATORY EXTRACTION INSTRUCTIONS:\n"
+            "You are a world-class AI Principal Resume Architect and Executive Recruiter.\n"
+            "Your mission is to perform a HIGH-PRECISION 100% ACCURATE EXTRACTION of the candidate's CV text. Extract EVERY real detail, skill, technology, framework, database, software, job position, company, achievement, responsibility, education item, certificate, project, and link.\n\n"
+            "MANDATORY EXTRACTION RULES:\n"
             "1. Output ONLY a valid JSON object matching the requested schema.\n"
-            "2. MAXIMUM SKILLS EXTRACTION: Thoroughly scan the entire text for ALL technical skills, software, programming languages, tools, frameworks, databases, platforms, protocols, methodologies, and soft skills. Include at least 10-25 technical skills and 5-10 soft skills if mentioned or implied.\n"
-            "3. FULL WORK EXPERIENCE: Extract ALL work experience items. For each role, write 4-8 comprehensive bullet points describing responsibilities, tools used, and accomplishments under 'responsibilities', and 2-4 achievements under 'achievements'.\n"
-            "4. EXECUTIVE SUMMARY: Formulate an inspiring 4-6 sentence Professional Summary ('personal_info.summary') in Russian highlighting domain expertise, key strengths, technologies, and career achievements.\n"
-            "5. EDUCATION & CERTIFICATES: Extract every university, college, degree, major, study period, certificate, course, and award.\n"
-            "6. PROJECTS & LINKS: Extract all side projects, GitHub/LinkedIn URLs, portfolio links, and contact information.\n"
+            "2. STRICT TRUTHFULNESS: Extract ONLY real factual data directly present or clearly implied in the candidate's CV. Do NOT fabricate companies, dates, or degrees.\n"
+            "3. DEEP SKILLS EXTRACTION: Thoroughly scan the entire text for ALL technical skills, software, programming languages, frameworks, databases, tools, platforms, protocols, methodologies, and soft skills mentioned anywhere in the CV text. Extract at least 8-25 real technical skills and 5-10 real soft skills.\n"
+            "4. FULL WORK EXPERIENCE: Extract ALL work experience entries. For each role, extract or formulate 4-8 detailed, professional bullet points under 'responsibilities' describing duties and technologies used, and 2-4 concrete achievements under 'achievements'.\n"
+            "5. EXECUTIVE SUMMARY: Formulate a rich 4-5 sentence Professional Summary ('personal_info.summary') in Russian highlighting the candidate's real domain expertise, key skills, and experience.\n"
+            "6. EDUCATION & CERTIFICATES: Extract all universities, degrees, majors, graduation years, certificates, and courses.\n"
             "7. JSON SCHEMA STRUCTURE:\n"
             "{\n"
             '  "personal_info": {"full_name": "str", "desired_position": "str", "email": "str", "phone": "str", "city": "str", "summary": "str"},\n'
@@ -49,8 +49,8 @@ class ResumeAIService:
         )
 
         user_prompt = (
-            f"Candidate Context:\nName: {user_name}, Email: {user_email}, Phone: {user_phone}, City: {user_city}\n\n"
-            f"FULL CV TEXT TO PARSE, EXTRACT AND EXPAND (THOROUGH & DEEP):\n{raw_text[:20000]}"
+            f"Candidate Profile Context:\nName: {user_name}, Email: {user_email}, Phone: {user_phone}, City: {user_city}\n\n"
+            f"FULL CV TEXT TO PARSE, EXTRACT AND ACCURATELY CONVERT TO RESUME:\n{raw_text[:20000]}"
         )
 
         messages = [
@@ -58,7 +58,7 @@ class ResumeAIService:
             {"role": "user", "content": user_prompt}
         ]
 
-        res_json_str = await AIKeyManager.generate_completion(messages, json_mode=True, temperature=0.2, max_tokens=4000)
+        res_json_str = await AIKeyManager.generate_completion(messages, json_mode=True, temperature=0.1, max_tokens=4000)
         if res_json_str:
             try:
                 parsed_dict = json.loads(res_json_str)
@@ -143,7 +143,7 @@ class ResumeAIService:
                     "location": item.get("location") or "Таджикистан"
                 })
 
-        # Skills & Tech stack keyword extraction
+        # Comprehensive 70+ Skill Keyword Scanner from raw CV text
         raw_skills = data.get("skills") or {}
         if isinstance(raw_skills, list):
             tech_skills = raw_skills
@@ -155,15 +155,15 @@ class ResumeAIService:
         if not isinstance(tech_skills, list): tech_skills = []
         if not isinstance(soft_skills, list): soft_skills = []
 
-        # Additional regex skill scan from raw text if skills list is small
         common_tech = [
-            "Python", "FastAPI", "Django", "Flask", "React", "Next.js", "JavaScript", "TypeScript",
-            "SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Docker", "Kubernetes", "Git", "GitHub",
-            "HTML", "HTML5", "CSS", "CSS3", "Tailwind", "TailwindCSS", "Node.js", "Express", "REST API",
-            "Figma", "Excel", "1C", "1С:Предприятие", "CRM", "English", "Russian", "Tajik",
-            "HR", "SEO", "Sales", "SMM", "Marketing", "Project Management", "Agile", "Scrum",
-            "Linux", "Nginx", "Бухгалтерия", "Финансы", "Аудит", "Кадры", "Логистика"
+            "Python", "FastAPI", "Django", "Flask", "React", "Next.js", "Vue.js", "Angular", "JavaScript", "TypeScript",
+            "HTML", "HTML5", "CSS", "CSS3", "Tailwind", "TailwindCSS", "Node.js", "Express", "Java", "Spring", "C#", ".NET", "C++", "PHP", "Laravel", "Go", "Ruby",
+            "SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "SQLite", "Oracle", "Docker", "Kubernetes", "Git", "GitHub", "GitLab", "Linux", "Nginx", "REST API", "GraphQL",
+            "Figma", "Photoshop", "Illustrator", "Excel", "MS Office", "1C", "1С:Предприятие", "CRM", "Bitrix24", "Salesforce", "SMM", "SEO", "HR", "Recruiting",
+            "Project Management", "Agile", "Scrum", "Kanban", "Jira", "English", "Russian", "Tajik",
+            "Бухгалтерия", "Финансы", "Аудит", "Кадры", "Логистика", "Закупки", "Складской учет", "Делопроизводство", "Продажи", "Клиентский сервис"
         ]
+
         if raw_text:
             for sk in common_tech:
                 if re.search(r'\b' + re.escape(sk) + r'\b', raw_text, re.IGNORECASE) and sk not in tech_skills:
@@ -171,6 +171,7 @@ class ResumeAIService:
 
         tech_skills = list(dict.fromkeys([s.strip() for s in tech_skills if s and len(s.strip()) >= 2]))
         soft_skills = list(dict.fromkeys([s.strip() for s in soft_skills if s and len(s.strip()) >= 2]))
+
 
 
         # Languages
