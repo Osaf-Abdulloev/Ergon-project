@@ -73,52 +73,12 @@ class ResumeService:
         # 3. Calculate completeness and AI suggestions
         eval_data = ResumeAIService.generate_ai_suggestions(structured_content)
 
-        target_pos = structured_content.get("personal_info", {}).get("desired_position") or "Резюме соискателя"
+        # 3. Calculate completeness and AI suggestions
+        eval_data = ResumeAIService.generate_ai_suggestions(structured_content)
+        target_pos = structured_content.get("personal_info", {}).get("desired_position") or "Специалист"
 
-        # 4. Auto-populate user's WorkerProfile and User profile fields from AI extracted CV
-        p_info = structured_content.get("personal_info", {})
-        if p_info.get("full_name") and p_info["full_name"].strip():
-            user.full_name = p_info["full_name"].strip()
-        if p_info.get("phone") and p_info["phone"].strip():
-            user.phone = p_info["phone"].strip()
-        if p_info.get("city") and p_info["city"].strip():
-            user.city = p_info["city"].strip()
-
-        if user_prof:
-            if p_info.get("desired_position") and p_info["desired_position"].strip():
-                user_prof.desired_position = p_info["desired_position"].strip()
-            if p_info.get("summary") and p_info["summary"].strip():
-                user_prof.bio = p_info["summary"].strip()
-
-            # Auto-populate education text
-            edu_list = structured_content.get("education", [])
-            if edu_list:
-                edu_texts = []
-                for e in edu_list:
-                    if isinstance(e, dict):
-                        inst = e.get("institution", "")
-                        deg = e.get("degree", "")
-                        yr = e.get("year", "")
-                        line = f"{inst} — {deg} ({yr})".strip(" —()")
-                        if line:
-                            edu_texts.append(line)
-                if edu_texts:
-                    user_prof.education = "\n".join(edu_texts)
-
-            # Auto-populate Work Experiences
-            exp_list = structured_content.get("work_experience", [])
-            if exp_list:
-                from app.models.domain import Experience
-                for exp_item in exp_list:
-                    if isinstance(exp_item, dict) and exp_item.get("company"):
-                        exp_obj = Experience(
-                            worker_profile_id=user_prof.id,
-                            company_name=exp_item.get("company", "Организация").strip(),
-                            role_title=exp_item.get("position", "Специалист").strip(),
-                            start_date=exp_item.get("period", "Ранее").strip(),
-                            description=exp_item.get("responsibilities", "").strip()
-                        )
-                        self.session.add(exp_obj)
+        # 4. Sync WorkerProfile, User, Experience, and WorkerSkill records in DB
+        await self._sync_worker_profile_from_resume(user.id, structured_content)
 
         # 5. Create Draft Resume in DB
         resume = Resume(
@@ -129,7 +89,7 @@ class ResumeService:
             status=ResumeStatus.DRAFT,
             content=structured_content,
             ai_suggestions=eval_data,
-            completeness_score=eval_data.get("completeness_score", 50),
+            completeness_score=eval_data.get("completeness_score", 85),
             is_published=False
         )
 
@@ -137,44 +97,41 @@ class ResumeService:
         await self.session.commit()
         return created
 
-
     async def create_draft_resume(self, user: User, data: ResumeCreateRequest) -> Resume:
         if user.role != UserRole.WORKER:
             raise ForbiddenException("AI Resume Builder is only accessible for Job Seekers.")
 
         user_prof = await self.user_repo.get_worker_profile(user.id)
-        
-        default_content = data.content.dict() if data.content else {
-            "personal_info": {
-                "full_name": user.full_name or user.username,
-                "desired_position": data.target_position or (user_prof.desired_position if user_prof else "Специалист"),
-                "email": user.email,
-                "phone": user.phone or "",
-                "city": user.city or "Душанбе",
-                "photo_url": user.avatar_url or "",
-                "summary": user_prof.bio if user_prof else ""
-            },
-            "work_experience": [],
-            "education": [],
-            "skills": {"technical": [], "soft": []},
-            "languages": [{"name": "Русский", "proficiency": "Native"}, {"name": "Тоҷикӣ", "proficiency": "Native"}],
-            "certificates": [],
-            "projects": [],
-            "social_links": {"linkedin": "", "github": "", "portfolio": "", "telegram": "", "website": ""},
-            "custom_sections": []
+        context = {
+            "full_name": user.full_name or user.username,
+            "username": user.username,
+            "email": user.email,
+            "phone": user.phone or "",
+            "city": user.city or "Душанбе",
+            "desired_position": data.target_position or (user_prof.desired_position if user_prof else "Специалист"),
+            "bio": user_prof.bio if user_prof else ""
         }
+        
+        if data.content:
+            default_content = data.content.dict() if hasattr(data.content, "dict") else data.content
+        else:
+            # Generate rich AI resume content even without an uploaded CV
+            default_content = ResumeAIService._fallback_heuristic_extraction("", context)
 
         eval_data = ResumeAIService.generate_ai_suggestions(default_content)
+
+        # Sync WorkerProfile, User, Experience, and WorkerSkill records in DB
+        await self._sync_worker_profile_from_resume(user.id, default_content)
 
         resume = Resume(
             user_id=user.id,
             source_file_id=data.source_file_id,
-            title=data.title or "Новый черновик резюме",
+            title=data.title or f"Резюме: {default_content.get('personal_info', {}).get('desired_position') or 'Специалист'}",
             target_position=data.target_position or default_content.get("personal_info", {}).get("desired_position") or "Специалист",
             status=ResumeStatus.DRAFT,
             content=default_content,
             ai_suggestions=eval_data,
-            completeness_score=eval_data.get("completeness_score", 30),
+            completeness_score=eval_data.get("completeness_score", 85),
             is_published=False
         )
 
