@@ -1,7 +1,7 @@
 import os
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, Form, status, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, Query, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -27,13 +27,16 @@ def _check_worker_permission(user: User):
         )
 
 @router.get("", response_model=List[ResumeOut])
+
 async def list_my_resumes(
+    status: Optional[str] = Query(None, description="Filter by status: draft or published"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     _check_worker_permission(current_user)
     service = ResumeService(db)
-    return await service.get_user_resumes(current_user)
+    return await service.get_user_resumes(current_user, status_filter=status)
+
 
 @router.get("/candidate/{user_id}", response_model=Optional[ResumeOut])
 async def get_candidate_published_resume(

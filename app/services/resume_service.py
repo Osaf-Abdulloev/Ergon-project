@@ -19,10 +19,18 @@ class ResumeService:
         self.repo = ResumeRepository(session)
         self.user_repo = UserRepository(session)
 
-    async def get_user_resumes(self, user: User) -> List[Resume]:
+    async def get_user_resumes(self, user: User, status_filter: Optional[str] = None) -> List[Resume]:
         if user.role != UserRole.WORKER:
             raise ForbiddenException("AI Resume Builder is only accessible for Job Seekers.")
-        return await self.repo.get_user_resumes(user.id)
+        resumes = await self.repo.get_user_resumes(user.id)
+        if status_filter:
+            sf = status_filter.lower().strip()
+            if sf == "draft":
+                return [r for r in resumes if not r.is_published]
+            elif sf == "published":
+                return [r for r in resumes if r.is_published]
+        return resumes
+
 
     async def get_resume_by_id(self, user: User, resume_id: uuid.UUID) -> Resume:
         if user.role != UserRole.WORKER:
@@ -219,11 +227,14 @@ class ResumeService:
         content = resume.content or {}
         p_info = content.get("personal_info") or {}
 
-        # Validation check
+        # Comprehensive Pre-Publication Validation
         if not p_info.get("full_name") or not p_info.get("full_name").strip():
-            raise BadRequestException("Укажите имя и фамилию перед публикацией резюме")
+            raise BadRequestException("Укажите имя и фамилию в блоке личной информации перед публикацией.")
         if not p_info.get("desired_position") or not p_info.get("desired_position").strip():
-            raise BadRequestException("Укажите желаемую должность перед публикацией резюме")
+            raise BadRequestException("Укажите желаемую должность перед публикацией резюме.")
+        if not p_info.get("email") and not p_info.get("phone"):
+            raise BadRequestException("Укажите хотя бы один контактный данные (email или телефон) для связи с работодателем.")
+
 
         # Unpublish any existing published resume for the user
         await self.repo.unpublish_user_resumes(user.id)
