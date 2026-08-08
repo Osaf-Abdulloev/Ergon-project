@@ -75,15 +75,21 @@ export const ResumeImportWizardModal: React.FC<ResumeImportWizardModalProps> = (
     }
   };
 
-  const handleStartAnalysis = async () => {
-    if (!selectedFile && !selectedFileId) {
-      setErrorMessage('Выберите файл резюме или выберите из галереи.');
-      return;
+  const formatErrorMsg = (msg: string | null) => {
+    if (!msg) return 'Не удалось обработать документ. Проверьте формат файла.';
+    if (msg.includes('authenticated') || msg.includes('credentials')) {
+      return 'Пожалуйста, войдите в систему или зарегистрируйтесь, чтобы сформировать AI резюме.';
     }
+    if (msg.includes('file upload or file_id')) {
+      return 'Выберите файл резюме (PDF, DOCX) или продолжите с генерацией базового AI резюме.';
+    }
+    return msg;
+  };
 
+  const handleStartAnalysis = async () => {
     setStep('analyzing');
     setAnalysisProgress(15);
-    setAnalysisStatusText('Чтение и распознавание документа...');
+    setAnalysisStatusText(selectedFile || selectedFileId ? 'Чтение и распознавание документа...' : 'Генерация структуры резюме с помощью HamKor AI...');
 
     const interval = setInterval(() => {
       setAnalysisProgress((prev) => {
@@ -119,9 +125,10 @@ export const ResumeImportWizardModal: React.FC<ResumeImportWizardModalProps> = (
       clearInterval(interval);
       console.error('CV Parsing error:', err);
       setStep('error');
-      setErrorMessage(err?.response?.data?.detail || 'Не удалось распознать документ. Проверьте формат файла.');
+      setErrorMessage(formatErrorMsg(err?.response?.data?.detail));
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
@@ -237,12 +244,12 @@ export const ResumeImportWizardModal: React.FC<ResumeImportWizardModalProps> = (
               <button
                 type="button"
                 onClick={handleStartAnalysis}
-                disabled={!selectedFile && !selectedFileId}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-md transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-md transition-all active:scale-95 flex items-center gap-2"
               >
-                <span>Создать с ИИ</span>
+                <span>{selectedFile || selectedFileId ? 'Импортировать с ИИ' : 'Сгенерировать с ИИ'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
+
             </div>
           </div>
         )}

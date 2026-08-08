@@ -135,7 +135,11 @@ async def parse_uploaded_cv(
         mime_type = db_file.mime_type
         db_file_id = db_file.id
     else:
-        raise HTTPException(status_code=400, detail="Must provide either a file upload or file_id")
+        # If no file or file_id provided, generate an initial AI draft resume directly
+        return await service.create_draft_resume(
+            current_user,
+            ResumeCreateRequest(title="Сгенерированное AI Резюме")
+        )
 
     return await service.parse_and_create_from_cv(
         user=current_user,
@@ -144,6 +148,7 @@ async def parse_uploaded_cv(
         mime_type=mime_type,
         source_file_id=db_file_id
     )
+
 
 @router.get("/{resume_id}", response_model=ResumeOut)
 async def get_resume_detail(
