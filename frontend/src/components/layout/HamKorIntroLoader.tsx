@@ -8,11 +8,16 @@ export const HamKorIntroLoader: React.FC<HamKorIntroLoaderProps> = ({ onComplete
   const [phase, setPhase] = useState<'intro' | 'approach' | 'handshake' | 'assemble' | 'text' | 'hold' | 'exit'>('intro');
   const [progress, setProgress] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     // Check if user prefers reduced motion
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      onComplete();
+      onCompleteRef.current();
       return;
     }
 
@@ -81,25 +86,25 @@ export const HamKorIntroLoader: React.FC<HamKorIntroLoaderProps> = ({ onComplete
 
     // 2. TIMELINE & PHASE CONTROLLER
     const startTime = Date.now();
-    const duration = 5200; // total intro animation ms
+    const duration = 3800; // Snappy 3.8s intro animation ms
 
     const progressInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
       const pct = Math.min(100, Math.round((elapsed / duration) * 100));
       setProgress(pct);
-    }, 30);
+    }, 20);
 
-    const t1 = setTimeout(() => setPhase('approach'), 600);
-    const t2 = setTimeout(() => setPhase('handshake'), 1700);
-    const t3 = setTimeout(() => setPhase('assemble'), 2700);
-    const t4 = setTimeout(() => setPhase('text'), 3500);
-    const t5 = setTimeout(() => setPhase('hold'), 4300);
-    const t6 = setTimeout(() => setPhase('exit'), 4800);
+    const t1 = setTimeout(() => setPhase('approach'), 400);
+    const t2 = setTimeout(() => setPhase('handshake'), 1200);
+    const t3 = setTimeout(() => setPhase('assemble'), 1900);
+    const t4 = setTimeout(() => setPhase('text'), 2500);
+    const t5 = setTimeout(() => setPhase('hold'), 3100);
+    const t6 = setTimeout(() => setPhase('exit'), 3500);
     const t7 = setTimeout(() => {
       clearInterval(progressInterval);
       cancelAnimationFrame(animId);
-      onComplete();
-    }, 5300);
+      onCompleteRef.current();
+    }, 3800);
 
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -113,7 +118,8 @@ export const HamKorIntroLoader: React.FC<HamKorIntroLoaderProps> = ({ onComplete
       clearTimeout(t6);
       clearTimeout(t7);
     };
-  }, [onComplete]);
+  }, []);
+
 
   return (
     <div
