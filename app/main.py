@@ -148,7 +148,8 @@ async def lifespan(app: FastAPI):
                 )
                 session.add(worker_user)
                 await session.flush()
-                session.add(WorkerProfile(user_id=worker_user.id, position="Фронтенд разработчик", skills=["React", "TypeScript", "TailwindCSS"], bio="Опытный веб-разработчик"))
+                session.add(WorkerProfile(user_id=worker_user.id, desired_position="Фронтенд разработчик", bio="Опытный веб-разработчик"))
+
 
             # 3. Demo Employer
             res_e = await session.execute(select(User).where((User.email == "employer@hamkor.tj") | (User.username == "employer")))
