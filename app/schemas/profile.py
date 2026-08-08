@@ -30,6 +30,21 @@ class ExperienceCreate(BaseModel):
     end_date: Optional[str] = None
     description: Optional[str] = None
 
+class CertificateOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    issuer: str
+    year: Optional[str] = None
+    credential_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class CertificateCreate(BaseModel):
+    title: str
+    issuer: str
+    year: Optional[str] = None
+    credential_url: Optional[str] = None
+
 class WorkerProfileOut(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
@@ -38,8 +53,15 @@ class WorkerProfileOut(BaseModel):
     bio: Optional[str] = None
     education: Optional[str] = None
     portfolio_links: Optional[Any] = None
+    relocation_preference: Optional[str] = None
+    commute_preference: Optional[str] = None
+    work_format: Optional[str] = None
+    has_driving_license: bool = False
+    driving_categories: Optional[Any] = None
+    has_own_car: bool = False
     skills: List[SkillOut] = []
     experiences: List[ExperienceOut] = []
+    certificates: List[CertificateOut] = []
     user: Optional[UserOut] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -50,6 +72,12 @@ class WorkerProfileUpdate(BaseModel):
     bio: Optional[str] = None
     education: Optional[str] = None
     portfolio_links: Optional[Any] = None
+    relocation_preference: Optional[str] = None
+    commute_preference: Optional[str] = None
+    work_format: Optional[str] = None
+    has_driving_license: Optional[bool] = None
+    driving_categories: Optional[Any] = None
+    has_own_car: Optional[bool] = None
     skills: Optional[List[str]] = None
 
 class CompanyOut(BaseModel):
@@ -60,6 +88,10 @@ class CompanyOut(BaseModel):
     logo_url: Optional[str] = None
     website: Optional[str] = None
     industry: Optional[str] = None
+    address: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    employee_count: Optional[str] = None
     is_verified: bool
     created_at: datetime
 
@@ -71,3 +103,7 @@ class CompanyUpdate(BaseModel):
     logo_url: Optional[str] = None
     website: Optional[str] = None
     industry: Optional[str] = None
+    address: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    employee_count: Optional[str] = None

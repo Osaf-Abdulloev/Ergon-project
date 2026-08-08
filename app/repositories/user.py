@@ -32,6 +32,14 @@ class UserRepository(BaseRepository[User]):
         )
         return result.scalars().first()
 
+    async def get_worker_profile(self, user_id: uuid.UUID):
+        from app.models.domain import WorkerProfile
+        result = await self.session.execute(
+            select(WorkerProfile).where(WorkerProfile.user_id == user_id)
+        )
+        return result.scalars().first()
+
+
 class TokenRepository:
     def __init__(self, session: AsyncSession):
         self.session = session

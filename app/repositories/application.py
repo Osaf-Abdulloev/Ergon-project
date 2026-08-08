@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func
-from app.models.domain import Application, Job
+from app.models.domain import Application, Job, Company
 from app.models.enums import ApplicationStatus
 from app.repositories.base import BaseRepository
 
@@ -38,14 +38,18 @@ class ApplicationRepository(BaseRepository[Application]):
     async def get_job_applications(
         self,
         job_id: uuid.UUID,
+        status_filter: Optional[ApplicationStatus] = None,
         skip: int = 0,
         limit: int = 20
     ) -> Tuple[List[Application], int]:
         query = (
             select(Application)
-            .options(selectinload(Application.worker))
+            .options(selectinload(Application.worker), selectinload(Application.job).selectinload(Job.company))
             .where(Application.job_id == job_id)
         )
+        if status_filter:
+            query = query.where(Application.status == status_filter)
+
         count_query = select(func.count()).select_from(query.subquery())
         total = (await self.session.execute(count_query)).scalar_one()
 
@@ -59,3 +63,31 @@ class ApplicationRepository(BaseRepository[Application]):
             .where(Application.id == application_id)
         )
         return result.scalars().first()
+
+    async def get_employer_applications(
+        self,
+        employer_id: uuid.UUID,
+        status_filter: Optional[ApplicationStatus] = None,
+        skip: int = 0,
+        limit: int = 50
+    ) -> Tuple[List[Application], int]:
+        query = (
+            select(Application)
+            .join(Job, Application.job_id == Job.id)
+            .outerjoin(Company, Job.company_id == Company.id)
+            .options(
+                selectinload(Application.worker),
+                selectinload(Application.job).selectinload(Job.company)
+            )
+            .where(
+                (Company.employer_id == employer_id) | (Job.external_source == f"employer_{employer_id}")
+            )
+        )
+        if status_filter:
+            query = query.where(Application.status == status_filter)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        total = (await self.session.execute(count_query)).scalar_one()
+
+        result = await self.session.execute(query.order_by(Application.created_at.desc()).offset(skip).limit(limit))
+        return list(result.scalars().all()), total

@@ -22,6 +22,7 @@ class ApplicationStatus(str, enum.Enum):
     REVIEWED = "reviewed"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    CANCELLED = "cancelled"
 
 class FavoriteTargetType(str, enum.Enum):
     JOB = "job"
@@ -38,3 +39,9 @@ class NotificationType(str, enum.Enum):
     STATUS_CHANGE = "status_change"
     AI_RECOMMENDATION = "ai_recommendation"
     SYSTEM = "system"
+
+class ResumeStatus(str, enum.Enum):
+    DRAFT = "draft"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
+

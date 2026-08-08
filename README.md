@@ -1,6 +1,6 @@
-# Ergon — Job Search Platform Backend
+# HamKor — Job Search Platform Backend
 
-Ergon is a high-load, production-grade backend for a two-sided job search marketplace connecting **workers** and **employers** in Tajikistan.
+HamKor is a high-load, production-grade backend for a two-sided job search marketplace connecting **workers** and **employers** in Tajikistan.
 
 ---
 

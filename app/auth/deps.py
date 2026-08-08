@@ -1,5 +1,6 @@
 import uuid
-from typing import List, Callable
+from typing import List, Callable, Optional
+from datetime import datetime, timezone
 from fastapi import Depends, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +37,38 @@ async def get_current_user(
         raise UnauthorizedException("User account is inactive")
 
     return user
+
+async def require_unmuted_user(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.is_muted or current_user.muted_until:
+        now = datetime.now(timezone.utc)
+        muted_until = current_user.muted_until
+        if muted_until and muted_until.tzinfo is None:
+            muted_until = muted_until.replace(tzinfo=timezone.utc)
+        
+        is_muted_now = current_user.is_muted or (muted_until and muted_until > now)
+        if is_muted_now:
+            reason = current_user.mute_reason or "Нарушение правил сообщества"
+            until_str = muted_until.strftime("%d.%m.%Y %H:%M") if muted_until else "Бессрочно"
+            raise ForbiddenException(f"Вы были замучены админом. Причина: {reason}. Срок: {until_str}")
+    return current_user
+
+async def get_current_user_optional(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return None
+    token = auth_header.split(" ")[1]
+    try:
+        payload = decode_token(token)
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            return None
+        user_repo = UserRepository(db)
+        return await user_repo.get_with_profile(uuid.UUID(user_id_str))
+    except Exception:
+        return None
 
 def require_roles(allowed_roles: List[UserRole]) -> Callable:
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:

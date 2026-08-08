@@ -54,4 +54,22 @@ class FavoriteService:
         skip: int = 0,
         limit: int = 20
     ) -> Tuple[List[Favorite], int]:
-        return await self.fav_repo.get_user_favorites(user_id, target_type=target_type, skip=skip, limit=limit)
+        from app.repositories.profile import CompanyRepository
+        from app.schemas.job import JobOut
+        from app.schemas.profile import WorkerProfileOut, CompanyOut
+        
+        company_repo = CompanyRepository(self.session)
+        items, total = await self.fav_repo.get_user_favorites(user_id, target_type=target_type, skip=skip, limit=limit)
+        
+        for item in items:
+            if item.target_type == FavoriteTargetType.JOB:
+                job = await self.job_repo.get_with_company(item.target_id)
+                item.target_details = JobOut.model_validate(job) if job else None
+            elif item.target_type == FavoriteTargetType.WORKER:
+                worker = await self.worker_repo.get_by_user_id(item.target_id)
+                item.target_details = WorkerProfileOut.model_validate(worker) if worker else None
+            elif item.target_type == FavoriteTargetType.COMPANY:
+                company = await company_repo.get_by_id(item.target_id)
+                item.target_details = CompanyOut.model_validate(company) if company else None
+
+        return items, total

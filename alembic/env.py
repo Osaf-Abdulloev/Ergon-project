@@ -7,8 +7,10 @@ from alembic import context
 from app.core.config import settings
 from app.models import Base
 
+from app.database.session import get_effective_db_url
+
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", get_effective_db_url())
 
 if config.config_file_name:
     fileConfig(config.config_file_name)

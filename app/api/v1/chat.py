@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db, AsyncSessionLocal
-from app.schemas.chat import ChatOut, MessageOut, MessageCreate, CreateChatRequest
+from app.schemas.chat import ChatOut, MessageOut, MessageCreate, MessageEditRequest, CreateChatRequest
 from app.schemas.common import PaginatedResponse
 from app.services.chat import ChatService
 from app.auth.deps import get_current_user
@@ -23,6 +23,7 @@ async def get_or_create_chat(
     return await service.get_or_create_chat(current_user.id, data.recipient_user_id)
 
 @router.get("", response_model=PaginatedResponse[ChatOut])
+@router.get("/conversations", response_model=PaginatedResponse[ChatOut])
 async def list_user_chats(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
@@ -61,28 +62,139 @@ async def send_message_http(
     msg = await service.send_message(current_user.id, data)
     
     msg_dict = {
+        "event": "new_message",
         "id": str(msg.id),
         "chat_id": str(msg.chat_id),
         "sender_id": str(msg.sender_id),
         "type": msg.type.value,
         "content": msg.content,
+        "client_msg_id": msg.client_msg_id,
+        "is_read": msg.is_read,
+        "is_edited": msg.is_edited,
+        "is_deleted": msg.is_deleted,
         "created_at": msg.created_at.isoformat()
     }
     chat = await service.chat_repo.get_chat_with_participants(chat_id)
     if chat:
-        for p in chat.participants:
-            if p.user_id != current_user.id:
-                await ws_manager.send_to_user(p.user_id, msg_dict)
+        p_ids = [p.user_id for p in chat.participants]
+        await ws_manager.broadcast_to_participants(p_ids, msg_dict)
+
+        # Notify offline/other participants via NotificationService
+        from app.services.notification_service import NotificationService
+        from app.models.enums import NotificationType
+        for pid in p_ids:
+            if pid != current_user.id:
+                sender_name = current_user.full_name or current_user.username
+                await NotificationService.send_notification(
+                    db,
+                    pid,
+                    f"Новое сообщение от {sender_name}",
+                    msg.content[:100] + ("..." if len(msg.content) > 100 else ""),
+                    type=NotificationType.SYSTEM
+                )
 
     return msg
 
+@router.patch("/{chat_id}/messages/{message_id}", response_model=MessageOut)
+async def edit_message(
+    chat_id: uuid.UUID,
+    message_id: uuid.UUID,
+    data: MessageEditRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    service = ChatService(db)
+    msg = await service.edit_message(current_user.id, message_id, data.content)
+    
+    payload = {
+        "event": "message_edited",
+        "id": str(msg.id),
+        "chat_id": str(msg.chat_id),
+        "content": msg.content,
+        "is_edited": True
+    }
+    chat = await service.chat_repo.get_chat_with_participants(chat_id)
+    if chat:
+        p_ids = [p.user_id for p in chat.participants]
+        await ws_manager.broadcast_to_participants(p_ids, payload)
+
+    return msg
+
+@router.delete("/{chat_id}/messages/{message_id}", response_model=MessageOut)
+async def delete_message(
+    chat_id: uuid.UUID,
+    message_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    service = ChatService(db)
+    msg = await service.delete_message(current_user.id, message_id)
+
+    payload = {
+        "event": "message_deleted",
+        "id": str(msg.id),
+        "chat_id": str(msg.chat_id),
+        "is_deleted": True
+    }
+    chat = await service.chat_repo.get_chat_with_participants(chat_id)
+    if chat:
+        p_ids = [p.user_id for p in chat.participants]
+        await ws_manager.broadcast_to_participants(p_ids, payload)
+
+    return msg
+
+@router.post("/{chat_id}/read")
+async def mark_chat_read(
+    chat_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    service = ChatService(db)
+    await service.msg_repo.mark_messages_as_read(chat_id, current_user.id)
+    await db.commit()
+
+    chat = await service.chat_repo.get_chat_with_participants(chat_id)
+    if chat:
+        p_ids = [p.user_id for p in chat.participants]
+        await ws_manager.broadcast_to_participants(p_ids, {
+            "event": "messages_read",
+            "chat_id": str(chat_id),
+            "reader_id": str(current_user.id)
+        })
+    return {"status": "success"}
+
+@router.delete("/{chat_id}")
+async def delete_chat(
+    chat_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    service = ChatService(db)
+    await service.delete_chat(current_user.id, chat_id)
+    return {"status": "success", "chat_id": str(chat_id)}
+
 @router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
+async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(None)):
+    if not token or token in ["undefined", "null", "demo_token"]:
+        await websocket.accept()
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
+        return
+
+    clean_token = token.replace("Bearer ", "").strip()
     try:
-        payload = decode_token(token)
+        payload = decode_token(clean_token)
         user_id = uuid.UUID(payload.get("sub"))
     except Exception:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        await websocket.accept()
+        try:
+            while True:
+                await websocket.receive_text()
+        except WebSocketDisconnect:
+            pass
         return
 
     await ws_manager.connect(user_id, websocket)
@@ -91,27 +203,57 @@ async def websocket_endpoint(websocket: WebSocket, token: str = Query(...)):
             raw_data = await websocket.receive_text()
             import json
             data_json = json.loads(raw_data)
-            chat_id = uuid.UUID(data_json.get("chat_id"))
-            content = data_json.get("content")
-            msg_type = data_json.get("type", "text")
+            event_type = data_json.get("event", "send_message")
+
+            if event_type == "ping":
+                await websocket.send_text(json.dumps({"event": "pong"}))
+                continue
+
+            chat_id_str = data_json.get("chat_id")
+            if not chat_id_str:
+                continue
+            chat_id = uuid.UUID(chat_id_str)
 
             async with AsyncSessionLocal() as db:
                 service = ChatService(db)
-                req = MessageCreate(chat_id=chat_id, type=msg_type, content=content)
-                msg = await service.send_message(user_id, req)
-                
-                msg_payload = {
-                    "id": str(msg.id),
-                    "chat_id": str(msg.chat_id),
-                    "sender_id": str(msg.sender_id),
-                    "type": msg.type.value,
-                    "content": msg.content,
-                    "created_at": msg.created_at.isoformat()
-                }
-                chat = await service.chat_repo.get_chat_with_participants(chat_id)
-                if chat:
-                    for p in chat.participants:
-                        await ws_manager.send_to_user(p.user_id, msg_payload)
+
+                if event_type in ["typing_start", "typing_stop"]:
+                    chat = await service.chat_repo.get_chat_with_participants(chat_id)
+                    if chat:
+                        p_ids = [p.user_id for p in chat.participants]
+                        await ws_manager.broadcast_to_participants(p_ids, {
+                            "event": event_type,
+                            "chat_id": str(chat_id),
+                            "user_id": str(user_id)
+                        })
+                    continue
+
+                if event_type == "send_message":
+                    content = data_json.get("content", "")
+                    msg_type = data_json.get("type", "text")
+                    client_msg_id = data_json.get("client_msg_id")
+
+                    req = MessageCreate(chat_id=chat_id, type=msg_type, content=content, client_msg_id=client_msg_id)
+                    msg = await service.send_message(user_id, req)
+
+                    msg_payload = {
+                        "event": "new_message",
+                        "id": str(msg.id),
+                        "chat_id": str(msg.chat_id),
+                        "sender_id": str(msg.sender_id),
+                        "type": msg.type.value,
+                        "content": msg.content,
+                        "client_msg_id": msg.client_msg_id,
+                        "is_read": msg.is_read,
+                        "is_edited": msg.is_edited,
+                        "is_deleted": msg.is_deleted,
+                        "created_at": msg.created_at.isoformat()
+                    }
+                    chat = await service.chat_repo.get_chat_with_participants(chat_id)
+                    if chat:
+                        p_ids = [p.user_id for p in chat.participants]
+                        await ws_manager.broadcast_to_participants(p_ids, msg_payload)
+
     except WebSocketDisconnect:
         ws_manager.disconnect(user_id, websocket)
     except Exception:

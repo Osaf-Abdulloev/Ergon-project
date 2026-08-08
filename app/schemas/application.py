@@ -9,9 +9,15 @@ from app.schemas.job import JobOut
 class ApplicationCreate(BaseModel):
     job_id: uuid.UUID
     cover_note: Optional[str] = None
+    cover_letter: Optional[str] = None
+    resume_url: Optional[str] = None
 
 class ApplicationStatusUpdate(BaseModel):
     status: ApplicationStatus
+    employer_feedback: Optional[str] = None
+
+class ApplicationCoverNoteUpdate(BaseModel):
+    cover_note: str
 
 class ApplicationOut(BaseModel):
     id: uuid.UUID
@@ -19,6 +25,9 @@ class ApplicationOut(BaseModel):
     job_id: uuid.UUID
     status: ApplicationStatus
     cover_note: Optional[str] = None
+    cover_letter: Optional[str] = None
+    resume_url: Optional[str] = None
+    employer_feedback: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     worker: Optional[UserOut] = None

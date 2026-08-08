@@ -1,6 +1,6 @@
 from datetime import datetime
 import uuid
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, ConfigDict, Field
 from app.models.enums import EmploymentType, JobStatus
 from app.schemas.profile import CompanyOut
@@ -29,18 +29,36 @@ class JobUpdate(BaseModel):
 
 class JobOut(BaseModel):
     id: uuid.UUID
-    company_id: uuid.UUID
+    company_id: Optional[uuid.UUID] = None
     title: str
     description: str
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
-    currency: str
+    currency: str = "TJS"
     location: str
-    category: str
+    category: Optional[str] = None
     employment_type: EmploymentType
     status: JobStatus
     created_at: datetime
     updated_at: datetime
     company: Optional[CompanyOut] = None
+
+    # External vacancy fields
+    is_external: bool = False
+    external_source: Optional[str] = None
+    external_id: Optional[str] = None
+    external_url: Optional[str] = None
+    external_company_name: Optional[str] = None
+    external_company_logo: Optional[str] = None
+
+    # Dynamic backend profile match fields
+    match_score: Optional[int] = None
+    commute_estimate: Optional[str] = None
+    distance_estimate: Optional[str] = None
+    matched_reasons: Optional[List[str]] = None
+    matched_skills: Optional[List[str]] = None
+
+    # Application status for current authenticated worker
+    has_applied: Optional[bool] = False
 
     model_config = ConfigDict(from_attributes=True)

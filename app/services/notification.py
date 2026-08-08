@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.domain import Notification
 from app.repositories.notification import NotificationRepository
 
-class NotificationService:
+class NotificationQueryService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.notif_repo = NotificationRepository(session)

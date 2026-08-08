@@ -40,5 +40,5 @@ async def test_ai_admin_and_file_endpoints(client):
     assert get_file_res.status_code == 200
     assert get_file_res.content == b"Hello world resume content"
 
-    analytics_res = await client.get("/api/v1/admin/analytics", headers=w_headers)
+    analytics_res = await client.get("/api/v1/admin/stats", headers=w_headers)
     assert analytics_res.status_code == 403

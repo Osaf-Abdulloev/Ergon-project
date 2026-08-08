@@ -17,7 +17,17 @@ class JobService:
     async def create_job(self, employer_id: uuid.UUID, data: JobCreate) -> Job:
         company = await self.company_repo.get_by_employer_id(employer_id)
         if not company:
-            raise NotFoundException("Employer company profile not found")
+            from app.repositories.user import UserRepository
+            user_repo = UserRepository(self.session)
+            user = await user_repo.get_by_id(employer_id)
+            c_name = (user.full_name or user.username or "Компания") if user else "Компания"
+            company = Company(
+                employer_id=employer_id,
+                company_name=c_name,
+                is_verified=True
+            )
+            self.session.add(company)
+            await self.session.flush()
 
         job = Job(
             company_id=company.id,
@@ -34,6 +44,12 @@ class JobService:
         job = await self.job_repo.create(job)
         await self.session.commit()
         return await self.job_repo.get_with_company(job.id)
+
+    async def get_my_jobs(self, employer_id: uuid.UUID, skip: int = 0, limit: int = 50) -> Tuple[List[Job], int]:
+        company = await self.company_repo.get_by_employer_id(employer_id)
+        if not company:
+            return [], 0
+        return await self.job_repo.search_jobs(company_id=company.id, status=None, skip=skip, limit=limit)
 
     async def update_job(self, employer_id: uuid.UUID, job_id: uuid.UUID, data: JobUpdate) -> Job:
         company = await self.company_repo.get_by_employer_id(employer_id)

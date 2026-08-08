@@ -1,8 +1,7 @@
 import json
 import uuid
-from typing import Dict, Set
+from typing import Dict, Set, List
 from fastapi import WebSocket
-from app.core.config import settings
 
 class ConnectionManager:
     def __init__(self):
@@ -12,6 +11,8 @@ class ConnectionManager:
         await websocket.accept()
         if user_id not in self.active_connections:
             self.active_connections[user_id] = set()
+            # Broadcast presence online if user was offline
+            await self.broadcast_presence(user_id, is_online=True)
         self.active_connections[user_id].add(websocket)
 
     def disconnect(self, user_id: uuid.UUID, websocket: WebSocket):
@@ -19,9 +20,32 @@ class ConnectionManager:
             self.active_connections[user_id].discard(websocket)
             if not self.active_connections[user_id]:
                 del self.active_connections[user_id]
+                # Broadcast presence offline
+                import asyncio
+                asyncio.create_task(self.broadcast_presence(user_id, is_online=False))
 
-    async def send_personal_message(self, message: dict, websocket: WebSocket):
-        await websocket.send_text(json.dumps(message))
+    async def broadcast_presence(self, user_id: uuid.UUID, is_online: bool):
+        payload = {
+            "event": "user_online" if is_online else "user_offline",
+            "user_id": str(user_id)
+        }
+        data = json.dumps(payload)
+        for target_id, sockets in list(self.active_connections.items()):
+            for ws in list(sockets):
+                try:
+                    await ws.send_text(data)
+                except Exception:
+                    pass
+
+    async def broadcast_to_participants(self, participant_ids: List[uuid.UUID], payload: dict):
+        data = json.dumps(payload)
+        for pid in participant_ids:
+            if pid in self.active_connections:
+                for ws in list(self.active_connections[pid]):
+                    try:
+                        await ws.send_text(data)
+                    except Exception:
+                        self.active_connections[pid].discard(ws)
 
     async def send_to_user(self, user_id: uuid.UUID, message: dict):
         if user_id in self.active_connections:

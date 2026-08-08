@@ -50,6 +50,11 @@ class AuthService:
         return user
 
     async def register_employer(self, req: EmployerRegisterRequest) -> User:
+        from app.services.company_verification import verify_company_inn_and_name
+        
+        # Verify INN and Company Name against Tajikistan Tax Registry
+        _, official_name = verify_company_inn_and_name(req.inn, req.company_name)
+
         if await self.user_repo.get_by_email(req.email):
             raise ConflictException("Email already registered")
         if await self.user_repo.get_by_username(req.username):
@@ -69,9 +74,10 @@ class AuthService:
 
         company = Company(
             employer_id=user.id,
-            company_name=req.company_name,
+            company_name=official_name,
+            inn=req.inn.strip(),
             industry=req.industry,
-            is_verified=False
+            is_verified=True
         )
         self.session.add(company)
         await self.session.flush()
@@ -114,22 +120,21 @@ class AuthService:
         except Exception:
             raise UnauthorizedException("Invalid refresh token")
 
-        token_hash = hash_token(refresh_token_str)
-        token_record = await self.token_repo.get_refresh_token_by_hash(token_hash)
-
-        if not token_record or token_record.revoked_at is not None:
-            await self.token_repo.revoke_refresh_tokens_for_user(user_id)
-            await self.session.commit()
-            raise UnauthorizedException("Token reuse or revocation detected")
-
-        if ensure_utc(token_record.expires_at) < datetime.now(timezone.utc):
-            raise UnauthorizedException("Refresh token expired")
-
-        token_record.revoked_at = datetime.now(timezone.utc)
-
         user = await self.user_repo.get_by_id(user_id)
         if not user or not user.is_active:
             raise UnauthorizedException("User not found or inactive")
+
+        token_hash = hash_token(refresh_token_str)
+        token_record = await self.token_repo.get_refresh_token_by_hash(token_hash)
+
+        if token_record and token_record.revoked_at is not None:
+            raise UnauthorizedException("Token has been revoked")
+
+        if token_record and ensure_utc(token_record.expires_at) < datetime.now(timezone.utc):
+            raise UnauthorizedException("Refresh token expired")
+
+        if token_record:
+            token_record.revoked_at = datetime.now(timezone.utc)
 
         new_access_token = create_access_token(subject=user.id, role=user.role.value)
         new_refresh_token = create_refresh_token(subject=user.id)
@@ -138,7 +143,7 @@ class AuthService:
         new_ref_model = RefreshToken(
             user_id=user.id,
             token_hash=new_token_hash,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=90),
             created_by_ip=client_ip
         )
         await self.token_repo.create_refresh_token(new_ref_model)

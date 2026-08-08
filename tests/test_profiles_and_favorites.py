@@ -27,7 +27,7 @@ async def test_worker_and_company_profile_flow(client):
     exp_res = await client.post(
         "/api/v1/users/me/experience",
         json={
-            "company_name": "Ergon Tech",
+            "company_name": "HamKor Tech",
             "role_title": "Senior Developer",
             "start_date": "2022-01-01",
             "end_date": "2024-01-01",

@@ -4,10 +4,10 @@ from app.models.enums import (
     FavoriteTargetType, MessageType, NotificationType
 )
 from app.models.domain import (
-    User, Skill, WorkerProfile, WorkerSkill, Experience,
-    Company, Job, Application, Favorite, Chat, ChatParticipant,
-    Message, Notification, EmailVerificationToken, PasswordResetToken,
-    RefreshToken
+    User, UserSettings, Skill, WorkerProfile, WorkerSkill, Experience,
+    Certificate, Company, Job, Application, SavedJob, Favorite, Chat, ChatParticipant,
+    Message, Notification, FileUpload, AIChatSession, AIMessage, AIGeneratedCV,
+    AuditLog, EmailVerificationToken, PasswordResetToken, RefreshToken
 )
 
 __all__ = [
@@ -21,18 +21,26 @@ __all__ = [
     "MessageType",
     "NotificationType",
     "User",
+    "UserSettings",
     "Skill",
     "WorkerProfile",
     "WorkerSkill",
     "Experience",
+    "Certificate",
     "Company",
     "Job",
     "Application",
+    "SavedJob",
     "Favorite",
     "Chat",
     "ChatParticipant",
     "Message",
     "Notification",
+    "FileUpload",
+    "AIChatSession",
+    "AIMessage",
+    "AIGeneratedCV",
+    "AuditLog",
     "EmailVerificationToken",
     "PasswordResetToken",
     "RefreshToken"

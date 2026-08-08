@@ -9,6 +9,10 @@ class MessageCreate(BaseModel):
     chat_id: uuid.UUID
     type: MessageType = MessageType.TEXT
     content: str
+    client_msg_id: Optional[str] = None
+
+class MessageEditRequest(BaseModel):
+    content: str
 
 class MessageOut(BaseModel):
     id: uuid.UUID
@@ -17,6 +21,9 @@ class MessageOut(BaseModel):
     type: MessageType
     content: str
     is_read: bool
+    is_edited: bool = False
+    is_deleted: bool = False
+    client_msg_id: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -32,6 +39,7 @@ class ChatOut(BaseModel):
     created_at: datetime
     participants: List[ChatParticipantOut] = []
     last_message: Optional[MessageOut] = None
+    unread_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

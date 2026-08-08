@@ -2,7 +2,7 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Ergon Job Search Platform"
+    PROJECT_NAME: str = "HamKor Job Search Platform"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
@@ -10,10 +10,12 @@ class Settings(BaseSettings):
     
     JWT_SECRET: str = "ergon_super_secret_jwt_key_2026_change_in_production_32bytes"
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days (43200 minutes)
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 90     # 90 days
     
     REDIS_URL: str = "redis://localhost:6379/0"
+    CELERY_BROKER_URL: str = ""
+    CELERY_RESULT_BACKEND: str = ""
     
     EMAIL_HOST: str = "smtp.gmail.com"
     EMAIL_PORT: int = 587

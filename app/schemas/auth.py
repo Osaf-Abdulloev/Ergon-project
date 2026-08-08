@@ -14,6 +14,7 @@ class EmployerRegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     password: str = Field(min_length=6)
     company_name: str = Field(min_length=2, max_length=255)
+    inn: Optional[str] = Field(default="010066543", max_length=12)
     phone: Optional[str] = None
     city: Optional[str] = None
     industry: Optional[str] = None

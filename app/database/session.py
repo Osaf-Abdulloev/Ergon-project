@@ -30,10 +30,15 @@ def ensure_postgresql_database(url: str) -> bool:
                 await conn.close()
 
         loop = asyncio.new_event_loop()
+        coro = _create_db()
         try:
-            loop.run_until_complete(_create_db())
+            loop.run_until_complete(coro)
             return True
         except Exception:
+            try:
+                coro.close()
+            except Exception:
+                pass
             return False
         finally:
             loop.close()

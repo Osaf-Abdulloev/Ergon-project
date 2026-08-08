@@ -17,6 +17,7 @@ class WorkerProfileRepository(BaseRepository[WorkerProfile]):
             .options(
                 selectinload(WorkerProfile.worker_skills).selectinload(WorkerSkill.skill),
                 selectinload(WorkerProfile.experiences),
+                selectinload(WorkerProfile.certificates),
                 selectinload(WorkerProfile.user)
             )
             .where(WorkerProfile.user_id == user_id)
@@ -34,11 +35,16 @@ class WorkerProfileRepository(BaseRepository[WorkerProfile]):
         query = select(WorkerProfile).join(WorkerProfile.user).options(
             selectinload(WorkerProfile.worker_skills).selectinload(WorkerSkill.skill),
             selectinload(WorkerProfile.experiences),
+            selectinload(WorkerProfile.certificates),
             selectinload(WorkerProfile.user)
         )
         
         if name:
-            query = query.where(User.username.ilike(f"%{name}%"))
+            query = query.where(
+                (User.username.ilike(f"%{name}%")) |
+                (User.full_name.ilike(f"%{name}%")) |
+                (WorkerProfile.desired_position.ilike(f"%{name}%"))
+            )
         if city:
             query = query.where(User.city.ilike(f"%{city}%"))
         if skill:

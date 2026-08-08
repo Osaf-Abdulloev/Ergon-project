@@ -48,6 +48,16 @@ async def test_job_lifecycle_and_application(client):
 
     app_repeat = await client.post("/api/v1/applications", json={"job_id": job_id}, headers=wrk_headers)
     assert app_repeat.status_code == 409
+    assert "уже откликались" in app_repeat.json()["detail"]
+
+    # Verify backend reports has_applied == True for the worker
+    check_app_res = await client.get(f"/api/v1/applications/check/{job_id}", headers=wrk_headers)
+    assert check_app_res.status_code == 200
+    assert check_app_res.json()["has_applied"] is True
+
+    get_job_res = await client.get(f"/api/v1/jobs/{job_id}", headers=wrk_headers)
+    assert get_job_res.status_code == 200
+    assert get_job_res.json()["has_applied"] is True
 
     status_update_res = await client.patch(
         f"/api/v1/applications/{app_data['id']}/status",
@@ -56,3 +66,4 @@ async def test_job_lifecycle_and_application(client):
     )
     assert status_update_res.status_code == 200
     assert status_update_res.json()["status"] == "accepted"
+

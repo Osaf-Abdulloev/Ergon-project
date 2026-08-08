@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#F8FAFC] dark:bg-[#0f172a] text-[#0F172A] dark:text-slate-100 font-sans antialiased selection:bg-indigo-600 selection:text-white transition-colors duration-200;
+  }
+}
+
+.ref-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem; /* 12px reduced radius */
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ref-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.08), 0 8px 10px -6px rgba(79, 70, 229, 0.04);
+}
+
+.dark .ref-card {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px -1px rgba(0, 0, 0, 0.2);
+}
+
+.dark .ref-card:hover {
+  border-color: #475569;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+.ref-btn-primary {
+  background-color: #4f46e5;
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 0.5rem; /* 8px reduced radius */
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ref-btn-primary:hover {
+  background-color: #4338ca;
+  box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.35);
+  transform: translateY(-1px);
+}
+
+.ref-pill-active {
+  background-color: #4f46e5;
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 0.5rem; /* 8px reduced radius */
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-6px) rotate(0.5deg);
+  }
+}
+
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(6px) rotate(-0.5deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float-1 {
+  animation: floatSlow 5s ease-in-out infinite;
+}
+
+.animate-float-2 {
+  animation: floatReverse 6s ease-in-out infinite;
+}
+
+.animate-float-3 {
+  animation: floatSlow 7s ease-in-out infinite 1s;
+}
+
+.animate-float-4 {
+  animation: floatReverse 5.5s ease-in-out infinite 0.5s;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4f46e5;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6366f1;
+}
