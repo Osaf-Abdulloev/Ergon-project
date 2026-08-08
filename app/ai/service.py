@@ -97,45 +97,78 @@ class GroqAIProvider(BaseAIProvider):
             "5. Respond in polite, helpful Russian or Tajik."
         )
 
-        # Check if user prompt requests applying for a job ("откликнись на", "подай заявку", "отправить отклик")
+        # Check if user prompt requests applying for a job ("откликнись на", "подай заявку", "отправить отклик", "отклик")
         prompt_lower = (prompt or "").lower()
-        if any(w in prompt_lower for w in ["откликнись", "откликнуться", "подай заявку", "подай отклик", "подать отклик", "подать заявку", "отправить отклик"]):
+        if any(w in prompt_lower for w in ["откликнись", "откликнуться", "подай заявку", "подай отклик", "подать отклик", "подать заявку", "отправить отклик", "отправь отклик"]):
             user_id = context.get("user_id") if context else None
             if user_id:
                 try:
                     db_jobs = await self.tools.search_jobs(title="", limit=1000)
                     matched_job = None
+
+                    # 1. Direct title match
                     for j in db_jobs:
                         t_low = j["title"].lower()
                         if t_low in prompt_lower:
                             matched_job = j
                             break
+
+                    # 2. Word substring match
                     if not matched_job:
+                        words = [w for w in prompt_lower.split() if len(w) >= 3 and w not in ["откликнись", "откликнуться", "подай", "подать", "заявку", "отклик", "вакансию", "на", "мне", "пожалуйста", "лучшую", "подходящую"]]
                         for j in db_jobs:
-                            words = [w for w in prompt_lower.split() if len(w) >= 4 and w not in ["откликнись", "подай", "заявку", "вакансию", "на"]]
-                            if any(word in j["title"].lower() for word in words):
+                            t_low = j["title"].lower()
+                            if any(word in t_low for word in words):
                                 matched_job = j
                                 break
+
+                    # 3. Best profile match fallback if user said "откликнись на лучшую" or no specific title
+                    if not matched_job and db_jobs:
+                        user_pos_lower = (user_prof.get("position") or "").lower() if isinstance(user_prof, dict) else ""
+                        user_skills = [s.lower() for s in (user_prof.get("skills") or [])] if isinstance(user_prof, dict) else []
+                        
+                        def score_job(j):
+                            s = 0
+                            t_low = j['title'].lower()
+                            if user_pos_lower and user_pos_lower in t_low: s += 50
+                            for sk in user_skills:
+                                if sk in t_low or sk in (j.get('description') or '').lower(): s += 20
+                            return s
+                        
+                        sorted_j = sorted(db_jobs, key=score_job, reverse=True)
+                        if sorted_j:
+                            matched_job = sorted_j[0]
 
                     if matched_job:
                         import uuid
                         from app.services.application import ApplicationService
                         from app.schemas.application import ApplicationCreate
                         app_service = ApplicationService(self.tools.session)
-                        cover_note = f"Здравствуйте! ИИ-помощник HamKor AI автоматически отправил отклик соискателя на вакансию '{matched_job['title']}'. Опыт и навыки полностью соответствуют требованиям."
+                        cover_note = f"Здравствуйте! ИИ-консультант HamKor AI отправил автоматический отклик соискателя на вакансию '{matched_job['title']}'. Опыт и профессиональные навыки соискателя полностью соответствуют квалификационным требованиям."
                         
                         try:
+                            sal_val = matched_job.get("salary_min")
+                            sal_str = f"{sal_val} TJS" if sal_val else "Договорная"
+                            
                             await app_service.apply_to_job(uuid.UUID(user_id), ApplicationCreate(job_id=uuid.UUID(matched_job["id"]), cover_note=cover_note))
-                            return f"✅ **Отклик успешно отправлен!**\n\nHamKor AI автоматически подал вашу заявку на вакансию **\"{matched_job['title']}\"** ({matched_job.get('company', 'Работодатель')}, {matched_job.get('location', 'Таджикистан')}).\n\nСтатус заявки: **На рассмотрении**. Работодатель уже получил ваше уведомление!"
+                            return (
+                                f"✅ **Отклик успешно отправлен!**\n\n"
+                                f"HamKor AI сформировал сопроводительное письмо и подал заявку на вакансию **\"{matched_job['title']}\"**\n"
+                                f"🏢 **Компания:** {matched_job.get('company', 'Работодатель')}\n"
+                                f"📍 **Локация:** {matched_job.get('location', 'Таджикистан')}\n"
+                                f"💰 **Зарплата:** {sal_str}\n\n"
+                                f"Статус заявки: **На рассмотрении**. Уведомление отправлено работодателю!"
+                            )
+
                         except Exception as app_err:
                             err_str = str(app_err)
                             if "already" in err_str.lower() or "существует" in err_str.lower() or "отклик" in err_str.lower():
-                                return f"ℹ️ Вы уже подавали отклик на вакансию **\"{matched_job['title']}\"**. Вы можете отслеживать статус в разделе «Отклики»."
+                                return f"ℹ️ Вы уже отправляли отклик на вакансию **\"{matched_job['title']}\"**. Вы можете отслеживать статус вашей заявки в разделе «Отклики»."
                             raise app_err
                 except Exception as ex:
                     logger.error(f"AI application error: {ex}")
             else:
-                return "Чтобы я мог автоматически отправить отклик на вакансию, пожалуйста, войдите в свой аккаунт на платформе."
+                return "Чтобы я мог автоматически отправить отклик на вакансию, пожалуйста, войдите в свой аккаунт соискателя на платформе."
 
         messages_payload = [{"role": "system", "content": system_prompt}]
         
@@ -148,7 +181,7 @@ class GroqAIProvider(BaseAIProvider):
 
         messages_payload.append({"role": "user", "content": prompt})
 
-        res = await AIKeyManager.generate_completion(messages_payload, json_mode=False, temperature=0.5, max_tokens=1000)
+        res = await AIKeyManager.generate_completion(messages_payload, json_mode=False, temperature=0.4, max_tokens=1200)
         if res and res.strip():
             return res.strip()
 
@@ -165,17 +198,19 @@ class DynamicFallbackAIProvider(BaseAIProvider):
         context: Optional[Dict[str, Any]] = None,
         history: Optional[List[Dict[str, str]]] = None
     ) -> str:
-        p_lower = prompt.lower().strip()
+        p_lower = (prompt or "").lower().strip()
         user_name = context.get("full_name") if context else None
         greeting_name = f", {user_name}" if user_name else ""
 
-        if any(w in p_lower for w in ["закуп", "закупат", "снабжен"]):
-            return f"У вас отличный опыт в закупках! На платформе HamKor есть подходящая вакансия \"Менеджер по закупкам\" в компании в Душанбе. Нажмите на интерактивную кнопку \"Менеджер по закупкам\" ниже или выберите карточку, чтобы посмотреть подробную информацию!"
+        try:
+            db_jobs = await self.tools.search_jobs(title="", limit=10)
+            if db_jobs:
+                matched_job = db_jobs[0]
+                return f"Привет{greeting_name}! Я подобрал подходящие вакансии в базе данных HamKor. Например: **\"{matched_job['title']}\"** ({matched_job.get('company', 'Работодатель')}, {matched_job.get('location', 'Таджикистан')}). Нажмите на название вакансии или попросите: *«Откликнись на вакансию {matched_job['title']}»*!"
+        except Exception:
+            pass
 
-        if any(w in p_lower for w in ["привет", "здравствуйте", "добрый день", "добрый вечер", "hi", "hello"]):
-            return f"Привет{greeting_name}! Напишите свой опыт работы или навыки (например: закупки, HR, разработчик, курьер), и я подберу подходящие вакансии."
-
-        return f"Я проанализировал ваш опыт и нашёл релевантные вакансии на платформе HamKor. Ознакомьтесь с карточками ниже:"
+        return f"Привет{greeting_name}! Я ваш карьерный ИИ-ассистент на платформе HamKor. Напишите вашу желаемую должность или попросите меня откликнуться на подходящие вакансии!"
 
 class AIService:
     def __init__(self, session: AsyncSession):
@@ -190,3 +225,4 @@ class AIService:
         history: Optional[List[Dict[str, str]]] = None
     ) -> str:
         return await self.provider.generate_response(prompt, context, history)
+
