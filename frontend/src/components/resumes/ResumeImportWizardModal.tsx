@@ -10,14 +10,17 @@ interface ResumeImportWizardModalProps {
   onClose: () => void;
   onSuccess: (resume: Resume) => void;
   user?: any;
+  onOpenAuth?: () => void;
 }
 
 export const ResumeImportWizardModal: React.FC<ResumeImportWizardModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  user
+  user,
+  onOpenAuth
 }) => {
+
   const { t } = useLanguage();
   if (!isOpen) return null;
 
@@ -280,22 +283,42 @@ export const ResumeImportWizardModal: React.FC<ResumeImportWizardModalProps> = (
             </div>
 
             <div className="space-y-2 max-w-md mx-auto">
-              <h4 className="text-lg font-black text-slate-900 dark:text-slate-100">Ошибка обработки документа</h4>
-              <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 leading-relaxed">{errorMessage}</p>
+              <h4 className="text-lg font-black text-slate-900 dark:text-slate-100">
+                {errorMessage?.includes('authenticated') || errorMessage?.includes('credentials') ? 'Требуется авторизация' : 'Ошибка обработки документа'}
+              </h4>
+              <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 leading-relaxed">
+                {errorMessage?.includes('authenticated') || errorMessage?.includes('credentials')
+                  ? 'Пожалуйста, войдите в систему или зарегистрируйтесь, чтобы сформировать AI резюме.'
+                  : errorMessage}
+              </p>
             </div>
 
             <div className="flex items-center justify-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setStep('upload')}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-md transition-all flex items-center gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                <span>Попробовать снова</span>
-              </button>
+              {errorMessage?.includes('authenticated') || errorMessage?.includes('credentials') ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenAuth?.();
+                  }}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-md transition-all flex items-center gap-2"
+                >
+                  <span>Войти в аккаунт</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setStep('upload')}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-md transition-all flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Попробовать снова</span>
+                </button>
+              )}
             </div>
           </div>
         )}
+
 
       </div>
     </div>

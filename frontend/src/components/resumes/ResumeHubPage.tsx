@@ -11,9 +11,10 @@ import { useLanguage } from '../../i18n/LanguageContext';
 
 interface ResumeHubPageProps {
   user?: any;
+  onOpenAuth?: () => void;
 }
 
-export const ResumeHubPage: React.FC<ResumeHubPageProps> = ({ user }) => {
+export const ResumeHubPage: React.FC<ResumeHubPageProps> = ({ user, onOpenAuth }) => {
   const { t } = useLanguage();
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,6 +23,15 @@ export const ResumeHubPage: React.FC<ResumeHubPageProps> = ({ user }) => {
 
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  const handleOpenWizard = () => {
+    if (!user) {
+      if (onOpenAuth) onOpenAuth();
+      return;
+    }
+    setIsWizardOpen(true);
+  };
+
 
   const loadResumes = async () => {
     setIsLoading(true);
@@ -153,7 +163,7 @@ export const ResumeHubPage: React.FC<ResumeHubPageProps> = ({ user }) => {
 
           <div className="pt-2 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => setIsWizardOpen(true)}
+              onClick={handleOpenWizard}
               className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition-all active:scale-95 flex items-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
@@ -204,9 +214,10 @@ export const ResumeHubPage: React.FC<ResumeHubPageProps> = ({ user }) => {
               </p>
             </div>
             <button
-              onClick={() => setIsWizardOpen(true)}
+              onClick={handleOpenWizard}
               className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-all inline-flex items-center gap-2"
             >
+
               <Sparkles className="w-4 h-4" />
               <span>Создать резюме с ИИ</span>
             </button>
@@ -294,7 +305,9 @@ export const ResumeHubPage: React.FC<ResumeHubPageProps> = ({ user }) => {
           setActiveResumeId(newResume.id);
         }}
         user={user}
+        onOpenAuth={onOpenAuth}
       />
+
 
     </div>
   );

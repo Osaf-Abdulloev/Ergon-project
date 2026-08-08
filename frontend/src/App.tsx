@@ -284,8 +284,9 @@ export const App: React.FC = () => {
             )}
 
             {activeTab === 'resumes' && (
-              <ResumeHubPage user={user} />
+              <ResumeHubPage user={user} onOpenAuth={() => setIsAuthOpen(true)} />
             )}
+
 
             {activeTab === 'chat' && (
               <ChatPage

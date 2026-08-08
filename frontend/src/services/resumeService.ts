@@ -57,16 +57,20 @@ export const resumeService = {
         formData.append('file_id', fileId);
       }
 
-      const response = await api.post('/resumes/parse-cv', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const token = localStorage.getItem('ergon_token') || localStorage.getItem('ergon_access_token');
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
 
+      const response = await api.post('/resumes/parse-cv', formData, { headers });
       return response.data;
     } catch (err) {
       console.error('Error parsing CV file:', err);
       throw err;
     }
   },
+
 
   // Update resume content or draft
   updateResume: async (id: string, data: ResumeUpdateRequest): Promise<Resume | null> => {
