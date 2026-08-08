@@ -97,6 +97,46 @@ class GroqAIProvider(BaseAIProvider):
             "5. Respond in polite, helpful Russian or Tajik."
         )
 
+        # Check if user prompt requests applying for a job ("откликнись на", "подай заявку", "отправить отклик")
+        prompt_lower = (prompt or "").lower()
+        if any(w in prompt_lower for w in ["откликнись", "откликнуться", "подай заявку", "подай отклик", "подать отклик", "подать заявку", "отправить отклик"]):
+            user_id = context.get("user_id") if context else None
+            if user_id:
+                try:
+                    db_jobs = await self.tools.search_jobs(title="", limit=1000)
+                    matched_job = None
+                    for j in db_jobs:
+                        t_low = j["title"].lower()
+                        if t_low in prompt_lower:
+                            matched_job = j
+                            break
+                    if not matched_job:
+                        for j in db_jobs:
+                            words = [w for w in prompt_lower.split() if len(w) >= 4 and w not in ["откликнись", "подай", "заявку", "вакансию", "на"]]
+                            if any(word in j["title"].lower() for word in words):
+                                matched_job = j
+                                break
+
+                    if matched_job:
+                        import uuid
+                        from app.services.application import ApplicationService
+                        from app.schemas.application import ApplicationCreate
+                        app_service = ApplicationService(self.tools.session)
+                        cover_note = f"Здравствуйте! ИИ-помощник HamKor AI автоматически отправил отклик соискателя на вакансию '{matched_job['title']}'. Опыт и навыки полностью соответствуют требованиям."
+                        
+                        try:
+                            await app_service.apply_to_job(uuid.UUID(user_id), ApplicationCreate(job_id=uuid.UUID(matched_job["id"]), cover_note=cover_note))
+                            return f"✅ **Отклик успешно отправлен!**\n\nHamKor AI автоматически подал вашу заявку на вакансию **\"{matched_job['title']}\"** ({matched_job.get('company', 'Работодатель')}, {matched_job.get('location', 'Таджикистан')}).\n\nСтатус заявки: **На рассмотрении**. Работодатель уже получил ваше уведомление!"
+                        except Exception as app_err:
+                            err_str = str(app_err)
+                            if "already" in err_str.lower() or "существует" in err_str.lower() or "отклик" in err_str.lower():
+                                return f"ℹ️ Вы уже подавали отклик на вакансию **\"{matched_job['title']}\"**. Вы можете отслеживать статус в разделе «Отклики»."
+                            raise app_err
+                except Exception as ex:
+                    logger.error(f"AI application error: {ex}")
+            else:
+                return "Чтобы я мог автоматически отправить отклик на вакансию, пожалуйста, войдите в свой аккаунт на платформе."
+
         messages_payload = [{"role": "system", "content": system_prompt}]
         
         if history:
@@ -113,6 +153,7 @@ class GroqAIProvider(BaseAIProvider):
             return res.strip()
 
         return await DynamicFallbackAIProvider(self.tools).generate_response(prompt, context, history)
+
 
 class DynamicFallbackAIProvider(BaseAIProvider):
     def __init__(self, tools: AITools):
