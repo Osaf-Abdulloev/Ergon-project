@@ -20,8 +20,9 @@ class EmployerRegisterRequest(BaseModel):
     industry: Optional[str] = None
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str = Field(min_length=1, description="Email or Username")
     password: str
+
 
 class TokenResponse(BaseModel):
     access_token: str
