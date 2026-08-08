@@ -112,18 +112,17 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"Startup DB init warning: {e}")
 
-    # Seed Super Admin User on startup
+    # Seed Default Production Admin, Employer, and Worker Accounts on startup
     try:
         from app.database.session import AsyncSessionLocal
-        from app.models.domain import User
+        from app.models.domain import User, WorkerProfile, Company
         from app.models.enums import UserRole
         from app.core.security import hash_password
         from sqlalchemy.future import select
         async with AsyncSessionLocal() as session:
-            stmt = select(User).where((User.email == "admin@hamkor.tj") | (User.username == "superadmin"))
-            res = await session.execute(stmt)
-            existing_admin = res.scalars().first()
-            if not existing_admin:
+            # 1. Admin
+            res = await session.execute(select(User).where((User.email == "admin@hamkor.tj") | (User.username == "superadmin")))
+            if not res.scalars().first():
                 admin_user = User(
                     email="admin@hamkor.tj",
                     username="superadmin",
@@ -134,12 +133,46 @@ async def lifespan(app: FastAPI):
                     is_active=True
                 )
                 session.add(admin_user)
-                try:
-                    await session.commit()
-                except Exception:
-                    await session.rollback()
+
+            # 2. Demo Worker
+            res_w = await session.execute(select(User).where((User.email == "worker@hamkor.tj") | (User.username == "worker")))
+            if not res_w.scalars().first():
+                worker_user = User(
+                    email="worker@hamkor.tj",
+                    username="worker",
+                    full_name="Соискатель Демо",
+                    password_hash=hash_password("Worker123!"),
+                    role=UserRole.WORKER,
+                    is_email_verified=True,
+                    is_active=True
+                )
+                session.add(worker_user)
+                await session.flush()
+                session.add(WorkerProfile(user_id=worker_user.id, position="Фронтенд разработчик", skills=["React", "TypeScript", "TailwindCSS"], bio="Опытный веб-разработчик"))
+
+            # 3. Demo Employer
+            res_e = await session.execute(select(User).where((User.email == "employer@hamkor.tj") | (User.username == "employer")))
+            if not res_e.scalars().first():
+                emp_user = User(
+                    email="employer@hamkor.tj",
+                    username="employer",
+                    full_name="Работодатель Демо",
+                    password_hash=hash_password("Employer123!"),
+                    role=UserRole.EMPLOYER,
+                    is_email_verified=True,
+                    is_active=True
+                )
+                session.add(emp_user)
+                await session.flush()
+                session.add(Company(employer_id=emp_user.id, company_name="ООО «Хамкор Текнолоджис»", inn="010066543", industry="IT & Телеком", is_verified=True))
+
+            try:
+                await session.commit()
+            except Exception:
+                await session.rollback()
     except Exception as e:
-        pass
+        print(f"Startup seed warning: {e}")
+
 
 
     # NOTE: Hourly sync of yora.tj vacancies, candidates, and Telegram channel jobs

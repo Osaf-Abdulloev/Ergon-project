@@ -11,18 +11,23 @@ class UserRepository(BaseRepository[User]):
         super().__init__(User, session)
 
     async def get_by_email(self, email: str) -> Optional[User]:
+        email_clean = email.strip().lower()
         result = await self.session.execute(
             select(User)
             .options(selectinload(User.worker_profile), selectinload(User.company))
-            .where(User.email == email)
+            .where((User.email.ilike(email_clean)) | (User.username.ilike(email_clean)))
         )
         return result.scalars().first()
 
     async def get_by_username(self, username: str) -> Optional[User]:
+        uname_clean = username.strip().lower()
         result = await self.session.execute(
-            select(User).where(User.username == username)
+            select(User)
+            .options(selectinload(User.worker_profile), selectinload(User.company))
+            .where((User.username.ilike(uname_clean)) | (User.email.ilike(uname_clean)))
         )
         return result.scalars().first()
+
 
     async def get_with_profile(self, user_id: uuid.UUID) -> Optional[User]:
         result = await self.session.execute(
