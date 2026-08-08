@@ -46,15 +46,17 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const fetchNotifications = async () => {
-    if (!user) return;
+    const token = localStorage.getItem('ergon_token') || localStorage.getItem('ergon_access_token');
+    if (!user || !token) return;
     try {
       const data = await notificationService.getNotifications(20);
       setNotifications(data.items || []);
       setUnreadCount(data.unread_count || 0);
     } catch (e) {
-      // ignore offline errors
+      // ignore
     }
   };
+
 
   useEffect(() => {
     updateNavAvatar();
