@@ -70,11 +70,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
         onClose();
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Произошла ошибка проверки данных организации. Убедитесь, что ИНН и название компании верны.');
+      const serverDetail = err.response?.data?.detail;
+      if (serverDetail === 'Invalid email or password') {
+        setError('Неверный email / имя пользователя или пароль. Попробуйте войти с логином superadmin, worker или admin@hamkor.tj.');
+      } else {
+        setError(serverDetail || 'Произошла ошибка проверки данных.');
+      }
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-fade-in">
@@ -235,19 +241,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           )}
 
           <div>
-            <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Электронная почта</label>
+            <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">
+              {mode === 'login' ? 'Email или Имя пользователя' : 'Электронная почта'}
+            </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               <input
-                type="email"
+                type={mode === 'login' ? 'text' : 'email'}
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
+                placeholder={mode === 'login' ? 'Email или логин (например: superadmin, worker, admin@hamkor.tj)' : 'user@hamkor.tj'}
                 className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
               />
             </div>
           </div>
+
 
           <div>
             <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1">Пароль</label>
