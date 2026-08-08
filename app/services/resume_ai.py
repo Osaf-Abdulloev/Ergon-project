@@ -25,31 +25,32 @@ class ResumeAIService:
         user_city = (user_profile or {}).get("city") or "Душанбе"
 
         system_prompt = (
-            "You are a world-class AI Principal Resume Architect and Career Strategist.\n"
-            "Your job is to thoroughly analyze the candidate's uploaded CV text, extract ALL factual data, and expand it into a comprehensive, highly detailed, production-grade professional resume.\n\n"
-            "CRITICAL EXTRACTION & EXPANSION RULES:\n"
-            "1. Output ONLY valid JSON conforming strictly to the requested schema.\n"
-            "2. DEEP EXTRACTION: Do NOT abbreviate or summarize briefly. Extract every single job, title, company, dates, degree, technology, tool, project, and certification mentioned.\n"
-            "3. EXECUTIVE SUMMARY: Write a rich, impactful 3-5 sentence Professional Summary ('personal_info.summary') in Russian (or language of CV) highlighting the candidate's domain expertise, key strengths, experience level, and value proposition.\n"
-            "4. WORK EXPERIENCE RESPONSIBILITIES: For EVERY work experience position, write 4-8 detailed, action-oriented, professional bullet points under 'responsibilities'. Describe what they accomplished, tools used, methodologies, and team leadership.\n"
-            "5. ACHIEVEMENTS: For every role, extract or formulate 2-4 concrete, measurable achievements supported by the CV text under 'achievements'.\n"
-            "6. SKILLS TAXONOMY: Extract ALL technical tools, programming languages, software, frameworks, databases, and methodologies into 'skills.technical' (aim for 8-20 items). Extract all interpersonal, leadership, and analytical soft skills into 'skills.soft'.\n"
-            "7. TRUTHFULNESS: Extract true facts from the text. Do NOT invent fake employment dates, fake companies, or fake degrees, but formulate clear, rich professional descriptions from the facts provided.\n"
-            "8. SCHEMA STRUCTURE (Top-level keys):\n"
-            "   - 'personal_info': {'full_name': str, 'desired_position': str, 'email': str, 'phone': str, 'city': str, 'summary': str}\n"
-            "   - 'work_experience': [{'company_name': str, 'position': str, 'start_date': str, 'end_date': str, 'is_current': bool, 'responsibilities': [str], 'achievements': [str], 'location': str}]\n"
-            "   - 'education': [{'institution': str, 'degree': str, 'field_of_study': str, 'start_year': str, 'end_year': str, 'location': str}]\n"
-            "   - 'skills': {'technical': [str], 'soft': [str]}\n"
-            "   - 'languages': [{'name': str, 'proficiency': str}]\n"
-            "   - 'certificates': [{'title': str, 'issuer': str, 'year': str, 'credential_url': str}]\n"
-            "   - 'projects': [{'name': str, 'description': str, 'tech_stack': [str], 'link': str}]\n"
-            "   - 'social_links': {'linkedin': str, 'github': str, 'portfolio': str, 'telegram': str, 'website': str}\n"
-            "   - 'custom_sections': [{'title': str, 'items': [str]}]\n"
+            "You are a world-class AI Principal Resume Architect and Senior Recruiter.\n"
+            "Your mission is to perform a MAXIMUM-DEPTH EXTRACTION of the candidate's CV text. Extract EVERY SINGLE detail, skill, technology, framework, database, tool, job, company, achievement, responsibility, education item, certificate, project, and link.\n\n"
+            "MANDATORY EXTRACTION INSTRUCTIONS:\n"
+            "1. Output ONLY a valid JSON object matching the requested schema.\n"
+            "2. MAXIMUM SKILLS EXTRACTION: Thoroughly scan the entire text for ALL technical skills, software, programming languages, tools, frameworks, databases, platforms, protocols, methodologies, and soft skills. Include at least 10-25 technical skills and 5-10 soft skills if mentioned or implied.\n"
+            "3. FULL WORK EXPERIENCE: Extract ALL work experience items. For each role, write 4-8 comprehensive bullet points describing responsibilities, tools used, and accomplishments under 'responsibilities', and 2-4 achievements under 'achievements'.\n"
+            "4. EXECUTIVE SUMMARY: Formulate an inspiring 4-6 sentence Professional Summary ('personal_info.summary') in Russian highlighting domain expertise, key strengths, technologies, and career achievements.\n"
+            "5. EDUCATION & CERTIFICATES: Extract every university, college, degree, major, study period, certificate, course, and award.\n"
+            "6. PROJECTS & LINKS: Extract all side projects, GitHub/LinkedIn URLs, portfolio links, and contact information.\n"
+            "7. JSON SCHEMA STRUCTURE:\n"
+            "{\n"
+            '  "personal_info": {"full_name": "str", "desired_position": "str", "email": "str", "phone": "str", "city": "str", "summary": "str"},\n'
+            '  "work_experience": [{"company_name": "str", "position": "str", "start_date": "str", "end_date": "str", "is_current": true/false, "responsibilities": ["str"], "achievements": ["str"], "location": "str"}],\n'
+            '  "education": [{"institution": "str", "degree": "str", "field_of_study": "str", "start_year": "str", "end_year": "str", "location": "str"}],\n'
+            '  "skills": {"technical": ["str"], "soft": ["str"]},\n'
+            '  "languages": [{"name": "str", "proficiency": "str"}],\n'
+            '  "certificates": [{"title": "str", "issuer": "str", "year": "str", "credential_url": "str"}],\n'
+            '  "projects": [{"name": "str", "description": "str", "tech_stack": ["str"], "link": "str"}],\n'
+            '  "social_links": {"linkedin": "str", "github": "str", "portfolio": "str", "telegram": "str", "website": "str"},\n'
+            '  "custom_sections": [{"title": "str", "items": ["str"]}]\n'
+            "}\n"
         )
 
         user_prompt = (
-            f"User Profile Info (Context):\nName: {user_name}, Email: {user_email}, Phone: {user_phone}, City: {user_city}\n\n"
-            f"FULL CV TEXT TO PARSE, EXTRACT AND EXPAND (THOROUGH & DETAILED):\n{raw_text[:16000]}"
+            f"Candidate Context:\nName: {user_name}, Email: {user_email}, Phone: {user_phone}, City: {user_city}\n\n"
+            f"FULL CV TEXT TO PARSE, EXTRACT AND EXPAND (THOROUGH & DEEP):\n{raw_text[:20000]}"
         )
 
         messages = [
@@ -57,11 +58,11 @@ class ResumeAIService:
             {"role": "user", "content": user_prompt}
         ]
 
-        res_json_str = await AIKeyManager.generate_completion(messages, json_mode=True, temperature=0.25, max_tokens=4000)
+        res_json_str = await AIKeyManager.generate_completion(messages, json_mode=True, temperature=0.2, max_tokens=4000)
         if res_json_str:
             try:
                 parsed_dict = json.loads(res_json_str)
-                return ResumeAIService._validate_and_enrich_extracted_json(parsed_dict, user_profile)
+                return ResumeAIService._validate_and_enrich_extracted_json(parsed_dict, user_profile, raw_text)
             except Exception as e:
                 logger.warning(f"Failed to parse JSON response from AI: {e}")
 
@@ -69,9 +70,13 @@ class ResumeAIService:
         return ResumeAIService._fallback_heuristic_extraction(raw_text, user_profile)
 
     @staticmethod
-    def _validate_and_enrich_extracted_json(data: Dict[str, Any], user_profile: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _validate_and_enrich_extracted_json(
+        data: Dict[str, Any], 
+        user_profile: Optional[Dict[str, Any]] = None,
+        raw_text: str = ""
+    ) -> Dict[str, Any]:
         """
-        Ensures all keys exist, assigns unique IDs to items, and enriches missing fields from user profile.
+        Ensures all keys exist, assigns unique IDs to items, maps flexible keys, and enriches missing fields.
         """
         p_info = data.get("personal_info") or {}
         u_prof = user_profile or {}
@@ -86,46 +91,87 @@ class ResumeAIService:
             "summary": p_info.get("summary") or u_prof.get("bio") or ""
         }
 
-        # Work Experience
-        raw_exp = data.get("work_experience") or []
+        # Work Experience with flexible key mapping
+        raw_exp = data.get("work_experience") or data.get("experiences") or []
         clean_exp = []
         for item in raw_exp:
-            if isinstance(item, dict) and (item.get("company_name") or item.get("position")):
+            if isinstance(item, dict):
+                comp = item.get("company_name") or item.get("company") or item.get("organization") or "Организация"
+                pos = item.get("position") or item.get("role") or item.get("title") or item.get("role_title") or "Специалист"
+                start = item.get("start_date") or item.get("start") or item.get("period") or "2021"
+                end = item.get("end_date") or item.get("end") or ("По настоящее время" if item.get("is_current") else "")
+                
+                resps = item.get("responsibilities") or item.get("description") or []
+                if isinstance(resps, str):
+                    resps = [r.strip(" •-*") for r in resps.splitlines() if r.strip()]
+                elif not isinstance(resps, list):
+                    resps = []
+
+                achieves = item.get("achievements") or []
+                if isinstance(achieves, str):
+                    achieves = [a.strip(" •-*") for a in achieves.splitlines() if a.strip()]
+                elif not isinstance(achieves, list):
+                    achieves = []
+
                 clean_exp.append({
                     "id": str(uuid.uuid4()),
-                    "company_name": item.get("company_name") or "Компания",
-                    "position": item.get("position") or "Специалист",
-                    "start_date": item.get("start_date") or "",
-                    "end_date": item.get("end_date") or "",
+                    "company_name": comp,
+                    "position": pos,
+                    "start_date": start,
+                    "end_date": end,
                     "is_current": bool(item.get("is_current", False)),
-                    "responsibilities": item.get("responsibilities") if isinstance(item.get("responsibilities"), list) else [],
-                    "achievements": item.get("achievements") if isinstance(item.get("achievements"), list) else [],
-                    "location": item.get("location") or ""
+                    "responsibilities": resps,
+                    "achievements": achieves,
+                    "location": item.get("location") or "Душанбе"
                 })
 
         # Education
         raw_edu = data.get("education") or []
         clean_edu = []
         for item in raw_edu:
-            if isinstance(item, dict) and (item.get("institution") or item.get("degree")):
+            if isinstance(item, dict):
+                inst = item.get("institution") or item.get("university") or item.get("school") or "Университет"
+                deg = item.get("degree") or item.get("qualification") or "Высшее образование"
+                field = item.get("field_of_study") or item.get("major") or item.get("specialty") or ""
                 clean_edu.append({
                     "id": str(uuid.uuid4()),
-                    "institution": item.get("institution") or "Университет",
-                    "degree": item.get("degree") or "Высшее",
-                    "field_of_study": item.get("field_of_study") or "",
-                    "start_year": str(item.get("start_year") or ""),
-                    "end_year": str(item.get("end_year") or ""),
-                    "location": item.get("location") or ""
+                    "institution": inst,
+                    "degree": deg,
+                    "field_of_study": field,
+                    "start_year": str(item.get("start_year") or item.get("start") or ""),
+                    "end_year": str(item.get("end_year") or item.get("end") or ""),
+                    "location": item.get("location") or "Таджикистан"
                 })
 
-        # Skills
+        # Skills & Tech stack keyword extraction
         raw_skills = data.get("skills") or {}
-        tech_skills = raw_skills.get("technical") if isinstance(raw_skills.get("technical"), list) else []
-        soft_skills = raw_skills.get("soft") if isinstance(raw_skills.get("soft"), list) else []
+        if isinstance(raw_skills, list):
+            tech_skills = raw_skills
+            soft_skills = []
+        else:
+            tech_skills = raw_skills.get("technical") or raw_skills.get("hard") or []
+            soft_skills = raw_skills.get("soft") or []
 
-        # Deduplicate
-        tech_skills = list(dict.fromkeys([s.strip() for s in tech_skills if s and len(s.strip()) > 1]))
-        soft_skills = list(dict.fromkeys([s.strip() for s in soft_skills if s and len(s.strip()) > 1]))
+        if not isinstance(tech_skills, list): tech_skills = []
+        if not isinstance(soft_skills, list): soft_skills = []
+
+        # Additional regex skill scan from raw text if skills list is small
+        common_tech = [
+            "Python", "FastAPI", "Django", "Flask", "React", "Next.js", "JavaScript", "TypeScript",
+            "SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Docker", "Kubernetes", "Git", "GitHub",
+            "HTML", "HTML5", "CSS", "CSS3", "Tailwind", "TailwindCSS", "Node.js", "Express", "REST API",
+            "Figma", "Excel", "1C", "1С:Предприятие", "CRM", "English", "Russian", "Tajik",
+            "HR", "SEO", "Sales", "SMM", "Marketing", "Project Management", "Agile", "Scrum",
+            "Linux", "Nginx", "Бухгалтерия", "Финансы", "Аудит", "Кадры", "Логистика"
+        ]
+        if raw_text:
+            for sk in common_tech:
+                if re.search(r'\b' + re.escape(sk) + r'\b', raw_text, re.IGNORECASE) and sk not in tech_skills:
+                    tech_skills.append(sk)
+
+        tech_skills = list(dict.fromkeys([s.strip() for s in tech_skills if s and len(s.strip()) >= 2]))
+        soft_skills = list(dict.fromkeys([s.strip() for s in soft_skills if s and len(s.strip()) >= 2]))
+
 
         # Languages
         raw_lang = data.get("languages") or []

@@ -252,7 +252,16 @@ class ResumeService:
         exp_list = content.get("work_experience") or []
         edu_list = content.get("education") or []
         skills = content.get("skills") or {}
-        tech_skills = skills.get("technical") or []
+        if isinstance(skills, list):
+            tech_skills = skills
+            soft_skills = []
+        elif isinstance(skills, dict):
+            tech_skills = skills.get("technical") if isinstance(skills.get("technical"), list) else []
+            soft_skills = skills.get("soft") if isinstance(skills.get("soft"), list) else []
+        else:
+            tech_skills = []
+            soft_skills = []
+
 
         # Sync User top-level fields
         u_stmt = select(User).where(User.id == user_id)
@@ -315,13 +324,14 @@ class ResumeService:
                 )
                 self.session.add(exp_obj)
 
-        # Sync Skills
-        if tech_skills:
+        # Sync Skills (Technical + Soft)
+        all_skills = list(dict.fromkeys(tech_skills + soft_skills))
+        if all_skills:
             from sqlalchemy import delete
             await self.session.execute(delete(WorkerSkill).where(WorkerSkill.worker_profile_id == prof.id))
             
             added_skill_ids = set()
-            for sk_name in tech_skills[:25]:
+            for sk_name in all_skills[:35]:
                 sk_clean = sk_name.strip()
                 if not sk_clean: continue
 
@@ -342,6 +352,7 @@ class ResumeService:
                 except Exception as e:
                     logger.warning(f"Skipping skill sync for '{sk_clean}': {e}")
                     continue
+
 
         self.session.add(prof)
         await self.session.flush()

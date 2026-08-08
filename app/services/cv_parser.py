@@ -9,14 +9,14 @@ class CVParserService:
     @staticmethod
     def clean_extracted_text(text: str) -> str:
         """
-        Strips PDF stream headers, binary artifacts, and unprintable binary noise from text.
+        Strips PDF stream headers and binary artifacts while preserving ALL text, bullet points, and technical symbols.
         """
         if not text:
             return ""
         
         import re
         pdf_markers = [
-            r'<<.*?>>', r'/Length\s+\d+', r'/Filter\s*/FlateDecode', r'FlateDecode',
+            r'<<.*?>>', r'/Length\s+\d+', r'/Filter\s*/FlateDecode',
             r'/MediaBox\s*\[.*?\]', r'/Parent\s+\d+\s+\d+\s+R', r'/Type\s*/\w+',
             r'/Font\s*<<.*?>>', r'%PDF-\d\.\d', r'endobj', r'stream', r'endstream'
         ]
@@ -30,14 +30,11 @@ class CVParserService:
             if not line_str or '<</Length' in line_str or '/FlateDecode' in line_str or 'Filter/FlateDecode' in line_str:
                 continue
             
-            # Count readable characters vs binary symbols
-            readable_count = sum(1 for c in line_str if c.isalnum() or c in [' ', '.', ',', '-', ':', '(', ')', '@', '+', '/'])
-            if len(line_str) > 5 and (readable_count / len(line_str)) < 0.4:
-                continue
-                
+            # Keep all lines with printable characters, letters, digits, symbols, or bullet points
             lines.append(line_str)
             
         return "\n".join(lines).strip()
+
 
     @staticmethod
     def extract_text_from_file_bytes(file_bytes: bytes, filename: str, mime_type: str = "") -> str:
