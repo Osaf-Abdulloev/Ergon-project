@@ -114,6 +114,7 @@ export const ResumeImportWizardModal: React.FC<ResumeImportWizardModalProps> = (
       setAnalysisStatusText('Резюме сформировано!');
 
       if (createdResume) {
+        window.dispatchEvent(new Event('ergon_profile_updated'));
         setTimeout(() => {
           onSuccess(createdResume);
           onClose();

@@ -62,11 +62,57 @@ class ResumeService:
         structured_content = await ResumeAIService.extract_structured_resume_from_text(raw_text, context)
 
         # 3. Calculate completeness and AI suggestions
+        # 3. Calculate completeness and AI suggestions
         eval_data = ResumeAIService.generate_ai_suggestions(structured_content)
 
         target_pos = structured_content.get("personal_info", {}).get("desired_position") or "Резюме соискателя"
 
-        # 4. Create Draft Resume in DB
+        # 4. Auto-populate user's WorkerProfile and User profile fields from AI extracted CV
+        p_info = structured_content.get("personal_info", {})
+        if p_info.get("full_name") and p_info["full_name"].strip():
+            user.full_name = p_info["full_name"].strip()
+        if p_info.get("phone") and p_info["phone"].strip():
+            user.phone = p_info["phone"].strip()
+        if p_info.get("city") and p_info["city"].strip():
+            user.city = p_info["city"].strip()
+
+        if user_prof:
+            if p_info.get("desired_position") and p_info["desired_position"].strip():
+                user_prof.desired_position = p_info["desired_position"].strip()
+            if p_info.get("summary") and p_info["summary"].strip():
+                user_prof.bio = p_info["summary"].strip()
+
+            # Auto-populate education text
+            edu_list = structured_content.get("education", [])
+            if edu_list:
+                edu_texts = []
+                for e in edu_list:
+                    if isinstance(e, dict):
+                        inst = e.get("institution", "")
+                        deg = e.get("degree", "")
+                        yr = e.get("year", "")
+                        line = f"{inst} — {deg} ({yr})".strip(" —()")
+                        if line:
+                            edu_texts.append(line)
+                if edu_texts:
+                    user_prof.education = "\n".join(edu_texts)
+
+            # Auto-populate Work Experiences
+            exp_list = structured_content.get("work_experience", [])
+            if exp_list:
+                from app.models.domain import Experience
+                for exp_item in exp_list:
+                    if isinstance(exp_item, dict) and exp_item.get("company"):
+                        exp_obj = Experience(
+                            worker_profile_id=user_prof.id,
+                            company_name=exp_item.get("company", "Организация").strip(),
+                            role_title=exp_item.get("position", "Специалист").strip(),
+                            start_date=exp_item.get("period", "Ранее").strip(),
+                            description=exp_item.get("responsibilities", "").strip()
+                        )
+                        self.session.add(exp_obj)
+
+        # 5. Create Draft Resume in DB
         resume = Resume(
             user_id=user.id,
             source_file_id=source_file_id,
@@ -82,6 +128,7 @@ class ResumeService:
         created = await self.repo.create(resume)
         await self.session.commit()
         return created
+
 
     async def create_draft_resume(self, user: User, data: ResumeCreateRequest) -> Resume:
         if user.role != UserRole.WORKER:
