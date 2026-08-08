@@ -60,6 +60,8 @@ engine_kwargs = {
     "future": True,
 }
 
+from sqlalchemy import event
+
 if effective_url.startswith("postgresql"):
     engine_kwargs.update({
         "pool_pre_ping": True,
@@ -67,8 +69,23 @@ if effective_url.startswith("postgresql"):
         "pool_size": 10,
         "max_overflow": 20,
     })
+else:
+    engine_kwargs.update({
+        "connect_args": {"check_same_thread": False}
+    })
 
 engine = create_async_engine(effective_url, **engine_kwargs)
+
+@event.listens_for(engine.sync_engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if "sqlite" in effective_url:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("PRAGMA synchronous=NORMAL;")
+        cursor.execute("PRAGMA cache_size=-64000;")
+        cursor.execute("PRAGMA temp_store=MEMORY;")
+        cursor.execute("PRAGMA mmap_size=268435456;")
+        cursor.close()
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -84,3 +101,4 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             yield session
         finally:
             await session.close()
+

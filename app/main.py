@@ -191,6 +191,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+from fastapi.middleware.gzip import GZipMiddleware
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -198,6 +200,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(users_router, prefix=settings.API_V1_STR)
