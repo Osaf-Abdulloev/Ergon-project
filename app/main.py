@@ -72,7 +72,10 @@ async def lifespan(app: FastAPI):
                 ("messages", "client_msg_id VARCHAR(100)"),
                 ("users", "telegram_chat_id VARCHAR(100)"),
                 ("users", "telegram_username VARCHAR(100)"),
-                ("users", "telegram_link_code VARCHAR(50)")
+                ("users", "telegram_link_code VARCHAR(50)"),
+                ("email_verification_tokens", "attempts_count INTEGER DEFAULT 0"),
+                ("email_verification_tokens", "last_sent_at DATETIME"),
+                ("email_verification_tokens", "created_at DATETIME")
             ]
             
             for table, col_def in columns_to_add:
