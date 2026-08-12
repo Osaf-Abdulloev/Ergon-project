@@ -62,24 +62,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           await authService.registerEmployer({ email, username: cleanUsername, password, company_name: companyName.trim(), inn: cleanInn });
         }
 
-        const res = await authService.login({ email, password });
-        let loggedUser = res.user;
-        if (!loggedUser) {
-          loggedUser = await authService.getCurrentUser();
-        }
-        if (!loggedUser) {
-          loggedUser = { 
-            id: `usr-${Date.now()}`, 
-            email, 
-            username: cleanUsername, 
-            role, 
-            company_name: role === 'employer' ? companyName.trim() : undefined 
-          };
-        } else if (role === 'employer' && companyName.trim()) {
-          loggedUser.company_name = companyName.trim();
-        }
+        const pendingUserData = { 
+          id: `usr-${Date.now()}`, 
+          email, 
+          username: cleanUsername, 
+          role, 
+          company_name: role === 'employer' ? companyName.trim() : undefined,
+          is_email_verified: false
+        };
 
-        // Initialize employer profile with registered company name immediately
         if (role === 'employer' && companyName.trim()) {
           saveEmployerProfile({
             company_name: companyName.trim(),
@@ -92,18 +83,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             target_position: '',
             required_skills: [],
             min_experience_years: '1-3 года'
-          }, loggedUser);
+          }, pendingUserData);
         }
 
-        setPendingUser(loggedUser);
+        setPendingUser(pendingUserData);
         setStep('verify');
       }
     } catch (err: any) {
-      const serverDetail = err.response?.data?.detail;
-      if (serverDetail === 'Invalid email or password') {
-        setError('Неверный email / имя пользователя или пароль. Попробуйте войти с логином superadmin, worker или admin@hamkor.tj.');
+      let serverDetail = err.response?.data?.detail;
+      if (Array.isArray(serverDetail)) {
+        serverDetail = serverDetail.map((d: any) => d.msg || d.detail).join('; ');
+      }
+      
+      if (serverDetail === 'Invalid email or password' || serverDetail === 'Incorrect email or password') {
+        setError('Неверный email / имя пользователя или пароль.');
+      } else if (err.response?.status === 403 && (serverDetail?.includes('не подтверждён') || serverDetail?.includes('unverified'))) {
+        setPendingUser({ email, role });
+        setStep('verify');
+        setError('Ваш Email ещё не подтверждён. Код отправлен на вашу почту.');
       } else {
-        setError(serverDetail || 'Произошла ошибка проверки данных.');
+        setError(serverDetail || 'Ошибка проверки данных. Проверьте правильность заполнения полей.');
       }
     } finally {
       setLoading(false);
