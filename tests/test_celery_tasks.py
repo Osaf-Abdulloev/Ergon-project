@@ -52,6 +52,7 @@ class TestWelcomeEmailTask:
 class TestTelegramTask:
     """Test send_telegram_notification_task."""
 
+    @patch("app.telegram.bot.telegram_bot.token", "test_bot_token")
     @patch("app.telegram.bot.telegram_bot.send_message_sync", return_value=True)
     def test_telegram_success(self, mock_tg):
         from app.celery.tasks import send_telegram_notification_task
@@ -60,6 +61,7 @@ class TestTelegramTask:
         assert result["chat_id"] == "12345"
         mock_tg.assert_called_once_with("Hello!", "12345")
 
+    @patch("app.telegram.bot.telegram_bot.token", "test_bot_token")
     @patch("app.telegram.bot.telegram_bot.send_message_sync", return_value=False)
     def test_telegram_failure_raises(self, mock_tg):
         from app.celery.tasks import send_telegram_notification_task
@@ -93,6 +95,7 @@ class TestTaskEnqueue:
         # In EAGER mode, result is available immediately
         assert result.get()["status"] == "sent"
 
+    @patch("app.telegram.bot.telegram_bot.token", "test_bot_token")
     @patch("app.telegram.bot.telegram_bot.send_message_sync", return_value=True)
     def test_telegram_delay(self, mock_tg):
         from app.celery.tasks import send_telegram_notification_task
