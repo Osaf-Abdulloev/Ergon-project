@@ -8,71 +8,83 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     @staticmethod
-    def send_email(to_email: str, subject: str, body: str, sender_name: str = "Работодатель HamKor") -> bool:
-        if not settings.EMAIL_USER or not settings.EMAIL_PASSWORD:
-            logger.warning("SMTP settings not configured in .env")
+    def _send_smtp_message(msg: MIMEMultipart, to_email: str) -> bool:
+        user = settings.get_smtp_user
+        password = settings.get_smtp_password
+        host = settings.get_smtp_host
+        port = settings.get_smtp_port
+
+        if not user or not password:
+            logger.warning("SMTP settings not configured in .env (EMAIL_USER / SMTP_USER is empty)")
             return False
+
+        sender = settings.get_email_from
+        msg["From"] = f"HamKor.tj <{sender}>" if "<" not in msg.get("From", "") else msg["From"]
+        msg["To"] = to_email
 
         try:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"{sender_name} <{settings.EMAIL_FROM or settings.EMAIL_USER}>"
-            msg["To"] = to_email
+            if port == 465 or getattr(settings, "SMTP_SSL", False):
+                with smtplib.SMTP_SSL(host, port, timeout=15) as server:
+                    server.login(user, password)
+                    server.sendmail(sender, [to_email], msg.as_string())
+            else:
+                with smtplib.SMTP(host, port, timeout=15) as server:
+                    server.starttls()
+                    server.login(user, password)
+                    server.sendmail(sender, [to_email], msg.as_string())
 
-            html_body = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="utf-8">
-            </head>
-            <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #0f172a; background-color: #f8fafc; margin: 0; padding: 20px;">
-              <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-                
-                <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 18px; border-radius: 12px; text-align: center; color: #ffffff; margin-bottom: 24px;">
-                  <h2 style="margin: 0; font-size: 20px; font-weight: 800;">Новое предложение на HamKor.tj</h2>
-                  <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">Платформа поиска работы и соискателей в Таджикистане</p>
-                </div>
-
-                <div style="padding: 8px 0; font-size: 14px; line-height: 1.6; color: #334155;">
-                  <p style="margin-top: 0; font-weight: 700; color: #1e293b;">Здравствуйте!</p>
-                  <p>Вам поступило новое сообщение от работодателя через платформу <strong>HamKor</strong>:</p>
-                  
-                  <div style="background-color: #f1f5f9; border-left: 4px solid #6366f1; padding: 16px; border-radius: 8px; margin: 16px 0; white-space: pre-wrap; font-size: 14px; color: #0f172a;">{body}</div>
-                  
-                  <p style="font-size: 13px; color: #64748b;">Вы можете ответить на это письмо напрямую на указный email работодателя или связаться с ним на платформе HamKor.</p>
-                </div>
-
-                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 16px 0;" />
-                <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
-                  © 2026 HamKor Job Search Platform. Все права защищены.
-                </p>
-              </div>
-            </body>
-            </html>
-            """
-
-            msg.attach(MIMEText(body, "plain", "utf-8"))
-            msg.attach(MIMEText(html_body, "html", "utf-8"))
-
-            server = smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=15)
-            server.starttls()
-            server.login(settings.EMAIL_USER, settings.EMAIL_PASSWORD)
-            server.sendmail(settings.EMAIL_USER, [to_email], msg.as_string())
-            server.quit()
-
-            logger.info(f"Successfully sent email to {to_email}")
+            logger.info("Successfully sent email to %s via %s:%s", to_email, host, port)
             return True
         except Exception as e:
-            logger.error(f"Error sending email to {to_email}: {e}")
+            logger.error("Error sending email to %s via %s:%s: %s", to_email, host, port, e)
             return False
+
+    @staticmethod
+    def send_email(to_email: str, subject: str, body: str, sender_name: str = "Работодатель HamKor") -> bool:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{sender_name} <{settings.get_email_from}>"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #0f172a; background-color: #f8fafc; margin: 0; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            
+            <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 18px; border-radius: 12px; text-align: center; color: #ffffff; margin-bottom: 24px;">
+              <h2 style="margin: 0; font-size: 20px; font-weight: 800;">Новое предложение на HamKor.tj</h2>
+              <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">Платформа поиска работы и соискателей в Таджикистане</p>
+            </div>
+
+            <div style="padding: 8px 0; font-size: 14px; line-height: 1.6; color: #334155;">
+              <p style="margin-top: 0; font-weight: 700; color: #1e293b;">Здравствуйте!</p>
+              <p>Вам поступило новое сообщение от работодателя через платформу <strong>HamKor</strong>:</p>
+              
+              <div style="background-color: #f1f5f9; border-left: 4px solid #6366f1; padding: 16px; border-radius: 8px; margin: 16px 0; white-space: pre-wrap; font-size: 14px; color: #0f172a;">{body}</div>
+              
+              <p style="font-size: 13px; color: #64748b;">Вы можете ответить на это письмо напрямую на указанный email работодателя или связаться с ним на платформе HamKor.</p>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0 16px 0;" />
+            <p style="font-size: 11px; color: #94a3b8; text-align: center; margin: 0;">
+              © 2026 HamKor Job Search Platform. Все права защищены.
+            </p>
+          </div>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        return EmailService._send_smtp_message(msg, to_email)
 
     @staticmethod
     def send_welcome_email(to_email: str, user_name: str = "") -> bool:
         """Send a rich HTML welcome email upon user registration introducing HamKor and AI tools."""
-        if not settings.EMAIL_USER or not settings.EMAIL_PASSWORD:
-            logger.warning("SMTP settings not configured in .env")
-            return False
-
         name_str = f", {user_name}" if user_name else ""
         subject = "Добро пожаловать в HamKor! Ваш умный ИИ-помощник по поиску работы"
 
@@ -126,34 +138,16 @@ class EmailService:
         </html>
         """
 
-        try:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"HamKor.tj <{settings.EMAIL_FROM or settings.EMAIL_USER}>"
-            msg["To"] = to_email
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-            msg.attach(MIMEText(plain_text, "plain", "utf-8"))
-            msg.attach(MIMEText(html_body, "html", "utf-8"))
-
-            server = smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=15)
-            server.starttls()
-            server.login(settings.EMAIL_USER, settings.EMAIL_PASSWORD)
-            server.sendmail(settings.EMAIL_USER, [to_email], msg.as_string())
-            server.quit()
-
-            logger.info(f"Successfully sent welcome email to {to_email}")
-            return True
-        except Exception as e:
-            logger.error(f"Error sending welcome email to {to_email}: {e}")
-            return False
+        return EmailService._send_smtp_message(msg, to_email)
 
     @staticmethod
     def send_verification_code_email(to_email: str, code: str) -> bool:
         """Send 6-digit verification code email."""
-        if not settings.EMAIL_USER or not settings.EMAIL_PASSWORD:
-            logger.warning("SMTP settings not configured in .env")
-            return False
-
         subject = f"Ваш код подтверждения HamKor: {code}"
         plain_text = f"Ваш код для подтверждения email на платформе HamKor: {code}\nКод действителен в течение 15 минут."
 
@@ -181,32 +175,16 @@ class EmailService:
         </html>
         """
 
-        try:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"HamKor.tj <{settings.EMAIL_FROM or settings.EMAIL_USER}>"
-            msg["To"] = to_email
-            msg.attach(MIMEText(plain_text, "plain", "utf-8"))
-            msg.attach(MIMEText(html_body, "html", "utf-8"))
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-            server = smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=15)
-            server.starttls()
-            server.login(settings.EMAIL_USER, settings.EMAIL_PASSWORD)
-            server.sendmail(settings.EMAIL_USER, [to_email], msg.as_string())
-            server.quit()
-            logger.info(f"Successfully sent verification code email to {to_email}")
-            return True
-        except Exception as e:
-            logger.error(f"Error sending verification code email to {to_email}: {e}")
-            return False
+        return EmailService._send_smtp_message(msg, to_email)
 
     @staticmethod
     def send_application_status_email(to_email: str, job_title: str, status_ru: str, feedback: str = "") -> bool:
         """Send notification email about application status update."""
-        if not settings.EMAIL_USER or not settings.EMAIL_PASSWORD:
-            logger.warning("SMTP settings not configured in .env")
-            return False
-
         subject = f"Обновление статуса отклика на вакансию «{job_title}»: {status_ru}"
         feedback_block = f"<div style='background-color: #f1f5f9; border-left: 4px solid #6366f1; padding: 12px; margin: 12px 0;'><strong>Примечание работодателя:</strong> {feedback}</div>" if feedback else ""
 
@@ -231,21 +209,9 @@ class EmailService:
         </html>
         """
 
-        try:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"HamKor.tj <{settings.EMAIL_FROM or settings.EMAIL_USER}>"
-            msg["To"] = to_email
-            msg.attach(MIMEText(f"Статус вашего отклика на «{job_title}»: {status_ru}", "plain", "utf-8"))
-            msg.attach(MIMEText(html_body, "html", "utf-8"))
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg.attach(MIMEText(f"Статус вашего отклика на «{job_title}»: {status_ru}", "plain", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
 
-            server = smtplib.SMTP(settings.EMAIL_HOST, settings.EMAIL_PORT, timeout=15)
-            server.starttls()
-            server.login(settings.EMAIL_USER, settings.EMAIL_PASSWORD)
-            server.sendmail(settings.EMAIL_USER, [to_email], msg.as_string())
-            server.quit()
-            logger.info(f"Successfully sent application status email to {to_email}")
-            return True
-        except Exception as e:
-            logger.error(f"Error sending application status email to {to_email}: {e}")
-            return False
+        return EmailService._send_smtp_message(msg, to_email)

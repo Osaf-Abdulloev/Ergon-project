@@ -100,10 +100,11 @@ def send_verification_email_task(self, to_email: str, code: str):
 
     success = EmailService.send_verification_code_email(to_email, code)
     if not success:
-        logger.warning(f"Verification email send failed for {to_email} (check SMTP settings)")
+        logger.warning(f"Verification email send failed for {to_email} (check SMTP settings in .env)")
+        raise RuntimeError(f"Verification email send failed for {to_email}")
 
     logger.info("send_verification_email_task completed | task_id=%s to=%s", self.request.id, to_email)
-    return {"status": "processed", "to": to_email}
+    return {"status": "sent", "to": to_email}
 
 
 @celery_app.task(

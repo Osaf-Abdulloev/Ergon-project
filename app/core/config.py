@@ -23,6 +23,35 @@ class Settings(BaseSettings):
     EMAIL_PASSWORD: str = ""
     EMAIL_FROM: str = ""
     
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 0
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAILS_FROM_EMAIL: str = ""
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    SMTP_SSL: bool = False
+
+    @property
+    def get_smtp_host(self) -> str:
+        return self.SMTP_HOST or self.EMAIL_HOST or "smtp.gmail.com"
+
+    @property
+    def get_smtp_port(self) -> int:
+        return self.SMTP_PORT or self.EMAIL_PORT or 587
+
+    @property
+    def get_smtp_user(self) -> str:
+        return self.SMTP_USER or self.MAIL_USERNAME or self.EMAIL_USER or ""
+
+    @property
+    def get_smtp_password(self) -> str:
+        return self.SMTP_PASSWORD or self.MAIL_PASSWORD or self.EMAIL_PASSWORD or ""
+
+    @property
+    def get_email_from(self) -> str:
+        return self.EMAILS_FROM_EMAIL or self.EMAIL_FROM or self.get_smtp_user
+    
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""
     
