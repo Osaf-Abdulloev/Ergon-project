@@ -209,6 +209,33 @@ export const authService = {
     return response.data;
   },
 
+  verifyEmail: async (code: string, email?: string) => {
+    const response = await api.post('/auth/verify-email', { code, token: code, email });
+    if (response.data.access_token) {
+      const token = response.data.access_token;
+      localStorage.setItem('ergon_token', token);
+      localStorage.setItem('ergon_access_token', token);
+      if (response.data.refresh_token) {
+        localStorage.setItem('ergon_refresh_token', response.data.refresh_token);
+      }
+      try {
+        const userRes = await api.get('/users/me');
+        if (userRes.data) {
+          localStorage.setItem('ergon_user', JSON.stringify(userRes.data));
+          window.dispatchEvent(new Event('ergon_profile_updated'));
+          return { ...response.data, user: userRes.data };
+        }
+      } catch (e) {}
+    }
+    return response.data;
+  },
+
+  resendVerification: async (email?: string) => {
+    const response = await api.post('/auth/resend-verification', { email });
+    return response.data;
+  },
+
+
   getCurrentUser: async () => {
     const token = getStoredToken();
 
@@ -246,6 +273,16 @@ export const authService = {
     }
     return null;
   },
+
+  getSidebarProfile: async () => {
+    try {
+      const response = await api.get('/users/me/sidebar-profile');
+      return response.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
 
   logout: () => {
     const refreshToken = localStorage.getItem('ergon_refresh_token');
@@ -304,6 +341,11 @@ export const applicationService = {
       status,
       employer_feedback: employerFeedback
     });
+    return response.data;
+  },
+
+  contactCandidate: async (applicationId: string) => {
+    const response = await api.post(`/applications/${applicationId}/contact`);
     return response.data;
   }
 };
@@ -371,6 +413,26 @@ export const profileService = {
 
   updateWorkerProfile: async (data: any) => {
     const response = await api.put('/users/me/worker-profile', data);
+    return response.data;
+  },
+
+  addExperience: async (data: { company_name: string; role_title: string; start_date: string; end_date?: string; description?: string }) => {
+    const response = await api.post('/users/me/experience', data);
+    return response.data;
+  },
+
+  deleteExperience: async (expId: string) => {
+    const response = await api.delete(`/users/me/experience/${expId}`);
+    return response.data;
+  },
+
+  addCertificate: async (data: { title: string; issuer: string; year?: string; credential_url?: string }) => {
+    const response = await api.post('/users/me/certificates', data);
+    return response.data;
+  },
+
+  deleteCertificate: async (certId: string) => {
+    const response = await api.delete(`/users/me/certificates/${certId}`);
     return response.data;
   },
 

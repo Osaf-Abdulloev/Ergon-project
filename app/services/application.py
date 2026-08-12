@@ -11,6 +11,22 @@ from app.repositories.profile import CompanyRepository
 from app.repositories.notification import NotificationRepository
 from app.core.exceptions import NotFoundException, ConflictException, ForbiddenException
 
+def _attach_ui_flags(app: Application) -> Application:
+    st = app.status
+    if st == ApplicationStatus.PENDING or (hasattr(st, 'value') and st.value == 'pending'):
+        setattr(app, 'can_accept', True)
+        setattr(app, 'can_reject', True)
+        setattr(app, 'can_contact', False)
+    elif st == ApplicationStatus.ACCEPTED or (hasattr(st, 'value') and st.value == 'accepted'):
+        setattr(app, 'can_accept', False)
+        setattr(app, 'can_reject', False)
+        setattr(app, 'can_contact', True)
+    else:
+        setattr(app, 'can_accept', False)
+        setattr(app, 'can_reject', False)
+        setattr(app, 'can_contact', False)
+    return app
+
 class ApplicationService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -56,11 +72,11 @@ class ApplicationService:
                 await self.notif_repo.create(notif)
 
             await self.session.commit()
-            return await self.app_repo.get_with_details(application.id)
+            created_app = await self.app_repo.get_with_details(application.id)
+            return _attach_ui_flags(created_app)
         except IntegrityError:
             await self.session.rollback()
             raise ConflictException("Вы уже откликались на эту вакансию. Повторный отклик невозможен.")
-
 
     async def cancel_application(self, worker_id: uuid.UUID, application_id: uuid.UUID) -> Application:
         application = await self.app_repo.get_with_details(application_id)
@@ -69,10 +85,13 @@ class ApplicationService:
         if application.worker_id != worker_id:
             raise ForbiddenException("Вы не можете отменить чужой отклик")
 
+        if application.status != ApplicationStatus.PENDING:
+            raise ConflictException("Отменить можно только отклики в статусе 'В рассмотрении'")
+
         application.status = ApplicationStatus.CANCELLED
         await self.app_repo.update(application)
         await self.session.commit()
-        return application
+        return _attach_ui_flags(application)
 
     async def update_cover_note(self, worker_id: uuid.UUID, application_id: uuid.UUID, cover_note: str) -> Application:
         application = await self.app_repo.get_with_details(application_id)
@@ -87,7 +106,7 @@ class ApplicationService:
         application.cover_letter = cover_note
         await self.app_repo.update(application)
         await self.session.commit()
-        return application
+        return _attach_ui_flags(application)
 
     async def update_application_status(
         self,
@@ -100,17 +119,20 @@ class ApplicationService:
         if not application:
             raise NotFoundException("Отклик не найден")
 
+        # 1. Verify Job Ownership (IDOR Prevention)
         company = await self.company_repo.get_by_employer_id(employer_id)
-        if not company:
-            user_res = await self.session.execute(select(User).where(User.id == employer_id))
-            user = user_res.scalars().first()
-            company = Company(
-                employer_id=employer_id,
-                name=user.full_name or user.username or "Компания",
-                is_verified=True
-            )
-            self.session.add(company)
-            await self.session.flush()
+        if application.job and application.job.company_id:
+            if not company or application.job.company_id != company.id:
+                raise ForbiddenException("У вас нет прав для изменения статуса этого отклика")
+
+        # 2. Enforce State Machine Transitions
+        curr = application.status
+        if curr == ApplicationStatus.ACCEPTED and new_status == ApplicationStatus.REJECTED:
+            raise ConflictException("Отклик уже принят. Изменение статуса на 'Отклонён' недопустимо.")
+        if curr == ApplicationStatus.REJECTED and new_status == ApplicationStatus.ACCEPTED:
+            raise ConflictException("Отклик уже отклонён. Изменение статуса на 'Принят' недопустимо.")
+        if curr == ApplicationStatus.CANCELLED:
+            raise ConflictException("Отклик был отменён соискателем.")
 
         application.status = new_status
         if employer_feedback:
@@ -129,6 +151,7 @@ class ApplicationService:
         if employer_feedback:
             body_text += f"\nЗаметка работодателя: {employer_feedback}"
 
+        # 3. Create In-App Notification
         notif = Notification(
             user_id=application.worker_id,
             type=NotificationType.STATUS_CHANGE,
@@ -137,15 +160,45 @@ class ApplicationService:
             payload={
                 "application_id": str(application.id),
                 "job_id": str(application.job_id),
-                "job_title": application.job.title,
+                "job_title": application.job.title if application.job else "",
                 "status": new_status.value,
                 "employer_feedback": employer_feedback or ""
             }
         )
         await self.notif_repo.create(notif)
-
         await self.session.commit()
-        return application
+
+        # 4. Enqueue Email Task via Celery
+        try:
+            if application.worker and application.worker.email:
+                from app.celery.tasks import send_application_status_email_task
+                send_application_status_email_task.delay(
+                    application.worker.email,
+                    application.job.title if application.job else "вакансию",
+                    st_name,
+                    employer_feedback or ""
+                )
+        except Exception:
+            pass
+
+        return _attach_ui_flags(application)
+
+    async def contact_candidate(self, employer_id: uuid.UUID, application_id: uuid.UUID):
+        application = await self.app_repo.get_with_details(application_id)
+        if not application:
+            raise NotFoundException("Отклик не найден")
+        if application.status != ApplicationStatus.ACCEPTED:
+            raise ConflictException("Связаться с кандидатом можно только после принятия отклика")
+
+        company = await self.company_repo.get_by_employer_id(employer_id)
+        if application.job and application.job.company_id:
+            if not company or application.job.company_id != company.id:
+                raise ForbiddenException("У вас нет прав для работы с этим откликом")
+
+        from app.services.chat import ChatService
+        chat_service = ChatService(self.session)
+        chat = await chat_service.get_or_create_chat(employer_id, application.worker_id)
+        return chat
 
     async def get_worker_applications(
         self,
@@ -153,7 +206,8 @@ class ApplicationService:
         skip: int = 0,
         limit: int = 20
     ) -> Tuple[List[Application], int]:
-        return await self.app_repo.get_worker_applications(worker_id, skip=skip, limit=limit)
+        apps, total = await self.app_repo.get_worker_applications(worker_id, skip=skip, limit=limit)
+        return [_attach_ui_flags(a) for a in apps], total
 
     async def get_job_applications(
         self,
@@ -171,7 +225,8 @@ class ApplicationService:
         if not job or job.company_id != company.id:
             raise ForbiddenException("Нет прав для просмотра откликов этой вакансии")
 
-        return await self.app_repo.get_job_applications(job_id, status_filter=status_filter, skip=skip, limit=limit)
+        apps, total = await self.app_repo.get_job_applications(job_id, status_filter=status_filter, skip=skip, limit=limit)
+        return [_attach_ui_flags(a) for a in apps], total
 
     async def get_all_employer_applications(
         self,
@@ -180,4 +235,5 @@ class ApplicationService:
         skip: int = 0,
         limit: int = 50
     ) -> Tuple[List[Application], int]:
-        return await self.app_repo.get_employer_applications(employer_id, status_filter=status_filter, skip=skip, limit=limit)
+        apps, total = await self.app_repo.get_employer_applications(employer_id, status_filter=status_filter, skip=skip, limit=limit)
+        return [_attach_ui_flags(a) for a in apps], total

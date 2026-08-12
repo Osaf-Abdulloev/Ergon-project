@@ -17,12 +17,9 @@ async def test_full_e2e_flow(client: AsyncClient):
     })
     assert reg_cand_res.status_code in (200, 201)
     
-    login_cand_res = await ac.post("/api/v1/auth/login", json={
-        "email": candidate_email,
-        "password": candidate_pass
-    })
-    assert login_cand_res.status_code == 200
-    cand_token = login_cand_res.json()["access_token"]
+    ver_cand_res = await ac.post("/api/v1/auth/verify-email", json={"email": candidate_email, "code": "123456"})
+    assert ver_cand_res.status_code == 200
+    cand_token = ver_cand_res.json()["access_token"]
     cand_headers = {"Authorization": f"Bearer {cand_token}"}
     
     # Verify Candidate profile
@@ -41,12 +38,9 @@ async def test_full_e2e_flow(client: AsyncClient):
         "company_name": "Тестовая Компания ООО"
     })
     
-    login_emp_res = await ac.post("/api/v1/auth/login", json={
-        "email": emp_email,
-        "password": emp_pass
-    })
-    assert login_emp_res.status_code == 200
-    emp_token = login_emp_res.json()["access_token"]
+    ver_emp_res = await ac.post("/api/v1/auth/verify-email", json={"email": emp_email, "code": "123456"})
+    assert ver_emp_res.status_code == 200
+    emp_token = ver_emp_res.json()["access_token"]
     emp_headers = {"Authorization": f"Bearer {emp_token}"}
 
     # ── 3. CANDIDATE CANNOT PUBLISH A JOB (RBAC TEST) ──

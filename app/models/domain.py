@@ -54,6 +54,14 @@ class User(Base, TimestampMixin):
     resumes: Mapped[List["Resume"]] = relationship("Resume", back_populates="user", cascade="all, delete-orphan")
     user_settings: Mapped[Optional["UserSettings"]] = relationship("UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
+    @property
+    def company_name(self) -> Optional[str]:
+        if 'company' in self.__dict__ and self.company is not None:
+            return self.company.company_name
+        return None
+
+
+
 class UserSettings(Base, TimestampMixin):
     __tablename__ = "user_settings"
 
@@ -360,6 +368,9 @@ class EmailVerificationToken(Base):
     token_hash: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     expires_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[Optional[DateTime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_sent_at: Mapped[Optional[DateTime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"

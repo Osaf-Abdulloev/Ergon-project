@@ -32,5 +32,8 @@ class ApplicationOut(BaseModel):
     updated_at: datetime
     worker: Optional[UserOut] = None
     job: Optional[JobOut] = None
+    can_accept: bool = False
+    can_reject: bool = False
+    can_contact: bool = False
 
     model_config = ConfigDict(from_attributes=True)

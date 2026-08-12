@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db
-from app.schemas.user import UserOut, UserUpdate
+from app.schemas.user import UserOut, UserUpdate, UserSidebarProfileOut
 from app.schemas.profile import (
     WorkerProfileOut, WorkerProfileUpdate, CompanyOut, CompanyUpdate, 
     ExperienceOut, ExperienceCreate, CertificateOut, CertificateCreate
@@ -19,6 +19,14 @@ router = APIRouter(prefix="/users", tags=["Users & Profiles"])
 @router.get("/me", response_model=UserOut)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.get("/me/sidebar-profile", response_model=UserSidebarProfileOut)
+async def get_my_sidebar_profile(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    service = UserService(db)
+    return await service.get_sidebar_profile(current_user.id)
 
 @router.put("/me", response_model=UserOut)
 async def update_me(data: UserUpdate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
@@ -143,6 +151,12 @@ async def update_my_worker_profile(data: WorkerProfileUpdate, current_user: User
 async def add_experience(data: ExperienceCreate, current_user: User = Depends(require_roles([UserRole.WORKER])), db: AsyncSession = Depends(get_db)):
     service = UserService(db)
     return await service.add_experience(current_user.id, data)
+
+@router.delete("/me/experience/{exp_id}", response_model=MessageResponse)
+async def delete_experience(exp_id: uuid.UUID, current_user: User = Depends(require_roles([UserRole.WORKER])), db: AsyncSession = Depends(get_db)):
+    service = UserService(db)
+    await service.delete_experience(current_user.id, exp_id)
+    return MessageResponse(message="Experience deleted successfully")
 
 @router.post("/me/certificates", response_model=CertificateOut, status_code=status.HTTP_201_CREATED)
 async def add_certificate(data: CertificateCreate, current_user: User = Depends(require_roles([UserRole.WORKER])), db: AsyncSession = Depends(get_db)):

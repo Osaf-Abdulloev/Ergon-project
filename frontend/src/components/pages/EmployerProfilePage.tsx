@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Save, Eye, Check, Search, ChevronDown, User, ArrowUpRight, Filter
 } from 'lucide-react';
 import { Candidate } from '../../types';
-import { candidateService } from '../../services/api';
+import { candidateService, profileService } from '../../services/api';
 import { 
   getSavedEmployerProfile, 
   saveEmployerProfile, 
@@ -28,19 +28,21 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
   onNavigateToPostJob
 }) => {
   const [profile, setProfile] = useState<EmployerProfileData>({
-    company_name: user?.company_name || user?.full_name || '',
-    industry: 'IT & Технологии',
-    company_description: '',
+    company_name: user?.company_name || user?.full_name || user?.username || 'ООО "Инновации Таджикистана"',
+    industry: 'Информационные технологии / Разработка ПО',
+    company_description: 'Наша компания занимается разработкой высоконагруженных веб-сервисов и мобильных приложений.',
     location: user?.city || 'г. Душанбе',
-    website: '',
-    contact_email: user?.email || '',
-    contact_phone: user?.phone || '',
-    target_position: 'Главный бухгалтер',
+    address: '',
+    website: 'https://company.tj',
+    contact_email: user?.email || 'hr@company.tj',
+    contact_phone: user?.phone || '+992 900 00 0000',
+    target_position: 'Бухгалтер / Финансовый специалист',
     required_skills: ['1С:Бухгалтерия', 'Налоги', 'Финансовый учет'],
     min_experience_years: '1-3 года',
     offered_salary_min: 6000,
     offered_salary_max: 12000,
-    avatar_url: user?.avatar_url || ''
+    avatar_url: user?.avatar_url || '',
+    logo_url: user?.avatar_url || ''
   });
 
   const [newSkillInput, setNewSkillInput] = useState('');
@@ -49,13 +51,57 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'matches'>('profile');
 
-  // Load saved profile on mount
+  // Load saved profile from backend DB on mount & auto-fill registration company name
   useEffect(() => {
+    const loadCompanyBackendProfile = async () => {
+      if (user?.id) {
+        try {
+          const cp = await profileService.getCompanyProfile();
+          if (cp) {
+            setProfile((prev) => ({
+              ...prev,
+              company_name: cp.company_name || user.company_name || user.full_name || prev.company_name,
+              industry: cp.industry || prev.industry,
+              company_description: cp.description || prev.company_description,
+              location: cp.address || user.city || prev.location,
+              website: cp.website || prev.website,
+              contact_email: cp.contact_email || user.email || prev.contact_email,
+              contact_phone: cp.contact_phone || user.phone || prev.contact_phone,
+              employee_count: cp.employee_count || prev.employee_count,
+              logo_url: cp.logo_url || user.avatar_url || prev.logo_url,
+              avatar_url: cp.logo_url || user.avatar_url || prev.avatar_url,
+              address: cp.address || prev.address || ''
+            }));
+          }
+        } catch (e) {
+          console.error('Failed to load company profile from backend DB:', e);
+        }
+      }
+    };
+
     const saved = getSavedEmployerProfile(user);
     if (saved) {
-      setProfile((prev) => ({ ...prev, ...saved }));
+      setProfile((prev) => ({ 
+        ...prev, 
+        ...saved,
+        company_name: saved.company_name || user?.company_name || user?.full_name || user?.username || prev.company_name,
+        logo_url: saved.logo_url || saved.avatar_url || user?.avatar_url || prev.logo_url,
+        avatar_url: saved.logo_url || saved.avatar_url || user?.avatar_url || prev.avatar_url,
+        address: saved.address || prev.address || '',
+        contact_email: saved.contact_email || user?.email || prev.contact_email
+      }));
+    } else if (user) {
+      setProfile((prev) => ({
+        ...prev,
+        company_name: user?.company_name || user?.full_name || user?.username || prev.company_name,
+        logo_url: user?.avatar_url || prev.logo_url,
+        avatar_url: user?.avatar_url || prev.avatar_url,
+        location: user?.city || prev.location
+      }));
     }
-  }, [user]);
+
+    loadCompanyBackendProfile();
+  }, [user?.id]);
 
   // Load real candidates from API
   useEffect(() => {
@@ -66,11 +112,58 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
       .catch((err) => console.error('Error fetching candidates for employer matching:', err));
   }, []);
 
-  const handleSave = (e?: React.FormEvent) => {
+  const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    saveEmployerProfile(profile, user);
-    setIsSavedNotice(true);
-    setTimeout(() => setIsSavedNotice(false), 4000);
+    if (!user?.id) {
+      if (onOpenAuth) onOpenAuth();
+      return;
+    }
+
+    try {
+      // 1. Update Company Profile in SQLite Database
+      await profileService.updateCompanyProfile({
+        company_name: profile.company_name,
+        industry: profile.industry,
+        description: profile.company_description,
+        website: profile.website,
+        contact_email: profile.contact_email,
+        contact_phone: profile.contact_phone,
+        address: profile.address || profile.location,
+        logo_url: profile.logo_url || profile.avatar_url,
+        employee_count: (profile as any).employee_count
+      });
+
+      // 2. Update User Details in SQLite Database
+      await profileService.updateUser({
+        full_name: profile.company_name,
+        avatar_url: profile.logo_url || profile.avatar_url,
+        phone: profile.contact_phone,
+        city: profile.location
+      });
+
+      // 3. Save to localStorage & trigger update event
+      saveEmployerProfile(profile, user);
+      setIsSavedNotice(true);
+      setTimeout(() => setIsSavedNotice(false), 4000);
+    } catch (err) {
+      console.error('Failed to save company profile to backend DB:', err);
+    }
+  };
+
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setProfile((prev) => ({
+          ...prev,
+          logo_url: base64String,
+          avatar_url: base64String
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleAddSkill = () => {
@@ -100,6 +193,29 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
     (c) => evaluateEmployerCandidateMatch(c, profile).matchScore >= 80
   ).length;
 
+  if (!user) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-6">
+        <div className="w-20 h-20 mx-auto rounded-3xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 shadow-sm">
+          <Building2 className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Профиль работодателя</h2>
+          <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+            Пожалуйста, войдите в аккаунт или зарегистрируйтесь как работодатель, чтобы просмотреть и настроить профиль вашей компании.
+          </p>
+        </div>
+        <button
+          onClick={onOpenAuth}
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition shadow-lg shadow-indigo-600/30"
+        >
+          <User className="w-5 h-5" />
+          <span>Войти / Зарегистрироваться</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-fade-in pb-16">
       
@@ -108,8 +224,8 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 p-1 shrink-0 shadow-md">
             <div className="w-full h-full bg-white dark:bg-slate-900 rounded-xl flex items-center justify-center overflow-hidden">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt="Logo" className="w-full h-full object-cover" />
+              {(profile.logo_url || profile.avatar_url) ? (
+                <img src={profile.logo_url || profile.avatar_url} alt="Logo" className="w-full h-full object-cover" />
               ) : (
                 <Building2 className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
               )}
@@ -126,7 +242,7 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5 flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> {profile.location}
+              <MapPin className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" /> {profile.location} {profile.address ? `• ${profile.address}` : ''}
               <span>•</span>
               <Building2 className="w-3.5 h-3.5 text-slate-400" /> {profile.industry}
             </p>
@@ -181,18 +297,59 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
               <span className="text-xs text-slate-400 font-semibold">Используется для ИИ-подбора</span>
             </div>
 
+            {/* Company Logo Photo Picker */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-50/70 via-slate-50 to-white dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/80 border border-indigo-100/80 dark:border-slate-700 flex flex-col sm:flex-row items-center gap-4">
+              <div className="relative group shrink-0">
+                <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-800 border-2 border-indigo-200 dark:border-slate-700 overflow-hidden flex items-center justify-center shadow-sm">
+                  {(profile.logo_url || profile.avatar_url) ? (
+                    <img src={profile.logo_url || profile.avatar_url} alt="Company Logo" className="w-full h-full object-cover" />
+                  ) : (
+                    <Building2 className="w-10 h-10 text-indigo-400" />
+                  )}
+                </div>
+                <label className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-2xl cursor-pointer transition-opacity text-white text-xs font-bold">
+                  Выбрать
+                  <input type="file" accept="image/*" onChange={handleLogoFileUpload} className="hidden" />
+                </label>
+              </div>
+
+              <div className="flex-1 space-y-2 w-full">
+                <label className="block text-xs font-black text-slate-800 dark:text-slate-200">
+                  Логотип / Фото компании
+                </label>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
+                  <label className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold cursor-pointer transition-all shrink-0">
+                    Загрузить фото
+                    <input type="file" accept="image/*" onChange={handleLogoFileUpload} className="hidden" />
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="Или вставьте URL картинки логотипа"
+                    value={profile.logo_url || ''}
+                    onChange={(e) => setProfile({ ...profile, logo_url: e.target.value, avatar_url: e.target.value })}
+                    className="w-full px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold outline-none focus:border-indigo-500 text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  Рекомендуемый формат: PNG, JPG или WebP до 5 МБ.
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Company Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Название компании</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Название компании <span className="text-emerald-500 font-normal">(из регистрации)</span>
+                </label>
                 <input
                   type="text"
                   required
                   placeholder="Например: ЗАО Банк Арванд / ООО ТоргКомплекс"
                   value={profile.company_name}
                   onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-semibold outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100 transition-all"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100 transition-all"
                 />
               </div>
 
@@ -216,7 +373,7 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
                 </select>
               </div>
 
-              {/* Location */}
+              {/* Location (City) */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Город в Таджикистане</label>
                 <select
@@ -228,6 +385,21 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
                     <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Company Address */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Улица и адрес офиса</label>
+                <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 focus-within:border-indigo-500 focus-within:bg-white dark:focus-within:bg-slate-900 transition-all">
+                  <MapPin className="w-4 h-4 text-indigo-500 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Например: проспект Рудаки 45, БЦ Помир, 4 этаж"
+                    value={profile.address || ''}
+                    onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+                    className="w-full text-xs font-semibold bg-transparent outline-none text-slate-800 dark:text-slate-100"
+                  />
+                </div>
               </div>
 
               {/* Website */}

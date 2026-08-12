@@ -14,13 +14,9 @@ async def test_worker_registration_and_login(client):
     assert data["email"] == "worker@example.com"
     assert data["role"] == "worker"
 
-    login_payload = {
-        "email": "worker@example.com",
-        "password": "password123"
-    }
-    res_login = await client.post("/api/v1/auth/login", json=login_payload)
-    assert res_login.status_code == 200
-    token_data = res_login.json()
+    res_verify = await client.post("/api/v1/auth/verify-email", json={"email": "worker@example.com", "code": "123456"})
+    assert res_verify.status_code == 200
+    token_data = res_verify.json()
     assert "access_token" in token_data
     assert "refresh_token" in token_data
     assert token_data["role"] == "worker"

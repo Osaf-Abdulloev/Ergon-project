@@ -170,6 +170,94 @@ class GroqAIProvider(BaseAIProvider):
             else:
                 return "Чтобы я мог автоматически отправить отклик на вакансию, пожалуйста, войдите в свой аккаунт соискателя на платформе."
 
+        user_role = (context or {}).get("role", "worker")
+        user_id = (context or {}).get("user_id")
+
+        # Handle Employer AI Recruiter Actions
+        if user_role == "employer" and user_id:
+            prompt_lower = (prompt or "").lower()
+
+            # Employer Action 1: Accept Candidate
+            if any(w in prompt_lower for w in ["прими ", "принять ", "одобри ", "одобрить "]):
+                try:
+                    emp_apps = await self.tools.get_employer_applications(user_id)
+                    matched_app = None
+                    for a in emp_apps:
+                        c_name = a["candidate_name"].lower()
+                        j_title = a["job_title"].lower()
+                        if c_name in prompt_lower or any(word in c_name for word in prompt_lower.split() if len(word) >= 3):
+                            matched_app = a
+                            break
+                        if j_title in prompt_lower:
+                            matched_app = a
+                            break
+
+                    if not matched_app and emp_apps:
+                        pending_apps = [a for a in emp_apps if a["status"] == "pending"]
+                        if pending_apps:
+                            matched_app = pending_apps[0]
+
+                    if matched_app:
+                        res = await self.tools.accept_application_by_ai(user_id, matched_app["application_id"])
+                        return (
+                            f"✅ **Отклик кандидата успешно принят!**\n\n"
+                            f"👤 **Кандидат:** {matched_app['candidate_name']}\n"
+                            f"💼 **Должность:** {matched_app['desired_position']}\n"
+                            f"📋 **Вакансия:** \"{matched_app['job_title']}\"\n\n"
+                            f"Кандидату отправлено уведомление и email. Теперь вы можете написать кандидату в чате!"
+                        )
+                except Exception as ex:
+                    logger.error(f"AI accept application error: {ex}")
+
+            # Employer Action 2: Reject Candidate
+            if any(w in prompt_lower for w in ["отклони ", "отклонить "]):
+                try:
+                    emp_apps = await self.tools.get_employer_applications(user_id)
+                    matched_app = None
+                    for a in emp_apps:
+                        c_name = a["candidate_name"].lower()
+                        if c_name in prompt_lower or any(word in c_name for word in prompt_lower.split() if len(word) >= 3):
+                            matched_app = a
+                            break
+
+                    if not matched_app and emp_apps:
+                        pending_apps = [a for a in emp_apps if a["status"] == "pending"]
+                        if pending_apps:
+                            matched_app = pending_apps[0]
+
+                    if matched_app:
+                        res = await self.tools.reject_application_by_ai(user_id, matched_app["application_id"])
+                        return (
+                            f"❌ **Отклик кандидата отклонён.**\n\n"
+                            f"👤 **Кандидат:** {matched_app['candidate_name']}\n"
+                            f"📋 **Вакансия:** \"{matched_app['job_title']}\"\n\n"
+                            f"Уведомление и письмо об отклонении отправлены кандидату."
+                        )
+                except Exception as ex:
+                    logger.error(f"AI reject application error: {ex}")
+
+            # Employer Action 3: Review / List Applications
+            if any(w in prompt_lower for w in ["отклик", "кандидат", "заявк", "кто откликнулся", "покажи подходящих"]):
+                try:
+                    emp_apps = await self.tools.get_employer_applications(user_id)
+                    if not emp_apps:
+                        return "По вашим вакансиям пока нет поступивших откликов от кандидатов."
+
+                    lines = [f"📊 **Поступившие отклики на ваши вакансии (всего: {len(emp_apps)}):**\n"]
+                    for a in emp_apps[:10]:
+                        skills_str = ", ".join(a["skills"][:4]) if a["skills"] else "не указаны"
+                        st_icon = "⏳" if a["status"] == "pending" else ("✅" if a["status"] == "accepted" else "❌")
+                        lines.append(
+                            f"{st_icon} **{a['candidate_name']}** — {a['desired_position']}\n"
+                            f"   • Вакансия: \"{a['job_title']}\"\n"
+                            f"   • Навыки: {skills_str}\n"
+                            f"   • Статус: {a['status']}\n"
+                        )
+                    lines.append("\nВы можете попросить меня: *«Прими кандидата [Имя]»* или *«Отклони кандидата [Имя]»*.")
+                    return "\n".join(lines)
+                except Exception as ex:
+                    logger.error(f"AI list applications error: {ex}")
+
         messages_payload = [{"role": "system", "content": system_prompt}]
         
         if history:

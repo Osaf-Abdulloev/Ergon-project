@@ -261,3 +261,18 @@ async def sync_yora_jobs(
         "source": "yora.tj",
         "stats": stats
     }
+
+@router.post("/sync/somon")
+async def sync_somon_jobs(
+    max_pages: int = Query(default=10, ge=1, le=100, description="Max pages to fetch from Somon.tj"),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.services.somon_parser import SomonParserService
+    parser = SomonParserService(db)
+    stats = await parser.fetch_and_sync(max_pages=max_pages)
+    return {
+        "status": "success",
+        "source": "somon.tj",
+        "stats": stats
+    }
+

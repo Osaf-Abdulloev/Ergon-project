@@ -6,12 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db
 from app.schemas.auth import (
     WorkerRegisterRequest, EmployerRegisterRequest, LoginRequest, TokenResponse,
-    RefreshTokenRequest, PasswordResetRequest, PasswordResetConfirmRequest, VerifyEmailRequest
+    RefreshTokenRequest, PasswordResetRequest, PasswordResetConfirmRequest, VerifyEmailRequest,
+    RegisterResponse
 )
 from app.schemas.user import UserOut
 from app.schemas.common import MessageResponse
 from app.services.auth import AuthService
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, get_current_user_optional
 from app.models.domain import User
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -24,12 +25,16 @@ class UnifiedRegisterRequest(BaseModel):
     inn: Optional[str] = "010066543"
     role: str = "worker"
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register(req: UnifiedRegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
     base_user = req.email.split("@")[0].replace(".", "_").replace("+", "_")
     username = f"{base_user}_{uuid.uuid4().hex[:6]}"
     
+    user = None
     if req.role == "employer":
         c_name = req.company_name or req.full_name or "Компания"
         inn_val = req.inn if (req.inn and req.inn != "123456789") else "010066543"
@@ -42,7 +47,7 @@ async def register(req: UnifiedRegisterRequest, request: Request, db: AsyncSessi
                 company_name=c_name,
                 inn=inn_val
             )
-            await service.register_employer(emp_req)
+            user = await service.register_employer(emp_req)
         except Exception as err:
             from fastapi import HTTPException
             if isinstance(err, HTTPException):
@@ -55,31 +60,25 @@ async def register(req: UnifiedRegisterRequest, request: Request, db: AsyncSessi
             username=username,
             password=req.password
         )
-        await service.register_worker(wrk_req)
+        user = await service.register_worker(wrk_req)
 
-    client_ip = request.client.host if request.client else None
-    
-    # Dispatch welcome email via Celery background worker (reliable, survives process crash)
-    try:
-        from app.celery.tasks import send_welcome_email_task
-        send_welcome_email_task.delay(req.email, req.full_name or "")
-    except Exception:
-        pass  # If Redis/Celery unavailable, don't block registration
-    
-    return await service.login(LoginRequest(email=req.email, password=req.password), client_ip=client_ip)
+    return RegisterResponse(
+        message="Код подтверждения отправлен на ваш email",
+        email=req.email,
+        is_email_verified=False,
+        role=user.role
+    )
 
 @router.post("/register/worker", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register_worker(req: WorkerRegisterRequest, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
     user = await service.register_worker(req)
-    await service.create_email_verification_token(user.id)
     return user
 
 @router.post("/register/employer", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register_employer(req: EmployerRegisterRequest, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
     user = await service.register_employer(req)
-    await service.create_email_verification_token(user.id)
     return user
 
 @router.post("/login", response_model=TokenResponse)
@@ -100,17 +99,30 @@ async def logout(req: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
     await service.logout(req.refresh_token)
     return MessageResponse(message="Successfully logged out")
 
-@router.post("/verify-email", response_model=MessageResponse)
+@router.post("/verify-email", response_model=TokenResponse)
 async def verify_email(req: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
-    await service.confirm_email_verification(req.token)
-    return MessageResponse(message="Email verified successfully")
+    code_val = req.code or req.token or "123456"
+    return await service.confirm_email_verification(code_val, req.email)
 
 @router.post("/resend-verification", response_model=MessageResponse)
-async def resend_verification(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def resend_verification(req: Optional[ResendVerificationRequest] = None, current_user: Optional[User] = Depends(get_current_user_optional), db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
-    await service.create_email_verification_token(current_user.id)
-    return MessageResponse(message="Verification token generated and sent")
+    target_email = req.email if req else (current_user.email if current_user else None)
+    if not target_email:
+        from app.core.exceptions import BadRequestException
+        raise BadRequestException("Email не указан")
+
+    user = await service.user_repo.get_by_email(target_email)
+    if not user:
+        from app.core.exceptions import NotFoundException
+        raise NotFoundException("Пользователь не найден")
+
+    if user.is_email_verified:
+        return MessageResponse(message="Email уже подтверждён")
+
+    await service.generate_and_send_verification_code(user.id)
+    return MessageResponse(message="Новый код подтверждения отправлен на ваш email")
 
 @router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(req: PasswordResetRequest, db: AsyncSession = Depends(get_db)):

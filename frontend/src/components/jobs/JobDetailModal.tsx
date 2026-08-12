@@ -80,6 +80,15 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose, us
         buttonClass: 'bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/30'
       };
     }
+    if (src.includes('somon') || url.includes('somon')) {
+      return {
+        type: 'somon',
+        label: 'somon.tj',
+        buttonText: 'Откликнуться на somon.tj ↗',
+        badgeBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+        buttonClass: 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/30'
+      };
+    }
     if (src.includes('yora') || url.includes('yora')) {
       return {
         type: 'yora',

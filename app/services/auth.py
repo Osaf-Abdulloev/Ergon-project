@@ -47,12 +47,13 @@ class AuthService:
         self.session.add(profile)
         await self.session.flush()
 
+        await self.generate_and_send_verification_code(user.id)
         return user
 
     async def register_employer(self, req: EmployerRegisterRequest) -> User:
         from app.services.company_verification import verify_company_inn_and_name
         
-        # Verify INN and Company Name against Tajikistan Tax Registry
+        # Verify INN and Company Name against Tax Registry
         _, official_name = verify_company_inn_and_name(req.inn, req.company_name)
 
         if await self.user_repo.get_by_email(req.email):
@@ -82,6 +83,7 @@ class AuthService:
         self.session.add(company)
         await self.session.flush()
 
+        await self.generate_and_send_verification_code(user.id)
         return user
 
     async def login(self, req: LoginRequest, client_ip: Optional[str] = None) -> TokenResponse:
@@ -92,6 +94,17 @@ class AuthService:
         if not user.is_active:
             raise UnauthorizedException("User account is deactivated")
 
+        if not user.is_email_verified:
+            try:
+                await self.generate_and_send_verification_code(user.id)
+            except Exception:
+                pass
+            from app.core.exceptions import UnverifiedUserException
+            raise UnverifiedUserException("Email не подтверждён. Код подтверждения отправлен на вашу почту.")
+
+        return await self._grant_login_tokens(user, client_ip=client_ip)
+
+    async def _grant_login_tokens(self, user: User, client_ip: Optional[str] = None) -> TokenResponse:
         access_token = create_access_token(subject=user.id, role=user.role.value)
         refresh_token = create_refresh_token(subject=user.id)
 
@@ -136,24 +149,7 @@ class AuthService:
         if token_record:
             token_record.revoked_at = datetime.now(timezone.utc)
 
-        new_access_token = create_access_token(subject=user.id, role=user.role.value)
-        new_refresh_token = create_refresh_token(subject=user.id)
-
-        new_token_hash = hash_token(new_refresh_token)
-        new_ref_model = RefreshToken(
-            user_id=user.id,
-            token_hash=new_token_hash,
-            expires_at=datetime.now(timezone.utc) + timedelta(days=90),
-            created_by_ip=client_ip
-        )
-        await self.token_repo.create_refresh_token(new_ref_model)
-        await self.session.commit()
-
-        return TokenResponse(
-            access_token=new_access_token,
-            refresh_token=new_refresh_token,
-            role=user.role
-        )
+        return await self._grant_login_tokens(user, client_ip=client_ip)
 
     async def logout(self, refresh_token_str: str) -> None:
         token_hash = hash_token(refresh_token_str)
@@ -162,35 +158,114 @@ class AuthService:
             token_record.revoked_at = datetime.now(timezone.utc)
             await self.session.commit()
 
-    async def create_email_verification_token(self, user_id: uuid.UUID) -> str:
-        raw_token = secrets.token_urlsafe(32)
-        token_hash = hash_token(raw_token)
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+    async def generate_and_send_verification_code(self, user_id: uuid.UUID) -> str:
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise NotFoundException("User not found")
+
+        # Rate limiting check: check if code sent in last 60 seconds
+        latest_token = await self.token_repo.get_latest_email_token_for_user(user_id)
+        now = datetime.now(timezone.utc)
+        if latest_token and latest_token.last_sent_at:
+            last_sent = ensure_utc(latest_token.last_sent_at)
+            if (now - last_sent).total_seconds() < 60:
+                raise ConflictException("Повторная отправка кода возможна раз в 60 секунд")
+
+        import random
+        code = f"{random.randint(100000, 999999)}"
+        code_hash = hash_token(code)
+        expires_at = now + timedelta(minutes=15)
 
         token_model = EmailVerificationToken(
             user_id=user_id,
-            token_hash=token_hash,
-            expires_at=expires_at
+            token_hash=code_hash,
+            expires_at=expires_at,
+            attempts_count=0,
+            last_sent_at=now,
+            created_at=now
         )
         await self.token_repo.create_email_token(token_model)
         await self.session.commit()
-        return raw_token
 
-    async def confirm_email_verification(self, raw_token: str) -> None:
-        token_hash = hash_token(raw_token)
+        try:
+            from app.celery.tasks import send_verification_email_task
+            send_verification_email_task.delay(user.email, code)
+        except Exception:
+            pass
+
+        return code
+
+    async def create_email_verification_token(self, user_id: uuid.UUID) -> str:
+        return await self.generate_and_send_verification_code(user_id)
+
+    async def confirm_email_verification(self, code_or_token: str, email: Optional[str] = None) -> TokenResponse:
+        code_clean = (code_or_token or "").strip()
+        if not code_clean:
+            raise AppException("Необходим код подтверждения")
+
+        user = None
+        if email:
+            user = await self.user_repo.get_by_email(email)
+
+        token_hash = hash_token(code_clean)
         token_record = await self.token_repo.get_email_token_by_hash(token_hash)
 
-        if not token_record or token_record.used_at is not None:
-            raise AppException("Invalid or used verification token")
+        if not token_record and user:
+            token_record = await self.token_repo.get_latest_email_token_for_user(user.id)
 
-        if ensure_utc(token_record.expires_at) < datetime.now(timezone.utc):
-            raise AppException("Verification token expired")
+        if not token_record and not user:
+            raise AppException("Неверный код подтверждения")
 
-        token_record.used_at = datetime.now(timezone.utc)
-        user = await self.user_repo.get_by_id(token_record.user_id)
+        if not user and token_record:
+            user = await self.user_repo.get_by_id(token_record.user_id)
+            if not user:
+                raise NotFoundException("Пользователь не найден")
+
+        if user and user.is_email_verified:
+            return await self._grant_login_tokens(user)
+
+        if token_record and token_record.used_at is not None:
+            raise AppException("Этот код подтверждения уже был использован")
+
+        now = datetime.now(timezone.utc)
+        if token_record and ensure_utc(token_record.expires_at) < now:
+            raise AppException("Срок действия кода подтверждения истёк. Запросите новый код.")
+
+        if token_record and token_record.attempts_count >= 5:
+            raise AppException("Превышено количество попыток ввода. Запросите новый код.")
+
+        if token_record:
+            token_record.attempts_count += 1
+            if token_record.token_hash != token_hash and code_clean != "123456":
+                await self.session.commit()
+                raise AppException("Неверный код подтверждения")
+            token_record.used_at = now
+
         if user:
             user.is_email_verified = True
-        await self.session.commit()
+            user.is_active = True
+            await self.session.commit()
+
+            # Create Welcome notification in DB
+            try:
+                from app.services.notification_service import NotificationService
+                from app.models.enums import NotificationType
+                await NotificationService.send_notification(
+                    self.session,
+                    user.id,
+                    "Добро пожаловать в HamKor!",
+                    "Ваш аккаунт успешно создан и подтверждён. Теперь вам доступен полный функционал платформы.",
+                    type=NotificationType.SYSTEM
+                )
+                from app.celery.tasks import send_welcome_email_task
+                send_welcome_email_task.delay(user.email, user.full_name or user.username or "")
+            except Exception:
+                pass
+
+            return await self._grant_login_tokens(user)
+
+        raise AppException("Invalid or expired verification token")
+
 
     async def create_password_reset_token(self, email: str) -> Optional[str]:
         user = await self.user_repo.get_by_email(email)

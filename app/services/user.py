@@ -140,6 +140,12 @@ class UserService:
         await self.session.execute(stmt)
         await self.session.commit()
 
+    async def delete_experience(self, user_id: uuid.UUID, exp_id: uuid.UUID) -> None:
+        profile = await self.get_worker_profile(user_id)
+        stmt = delete(Experience).where(Experience.id == exp_id, Experience.worker_profile_id == profile.id)
+        await self.session.execute(stmt)
+        await self.session.commit()
+
     async def get_user_settings(self, user_id: uuid.UUID) -> UserSettings:
         stmt = select(UserSettings).where(UserSettings.user_id == user_id)
         res = await self.session.execute(stmt)
@@ -222,3 +228,67 @@ class UserService:
         limit: int = 20
     ) -> Tuple[List[WorkerProfile], int]:
         return await self.worker_repo.search_workers(name=name, skill=skill, city=city, skip=skip, limit=limit)
+
+    async def get_sidebar_profile(self, user_id: uuid.UUID) -> dict:
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise NotFoundException("User not found")
+
+        role_val = user.role.value if hasattr(user.role, 'value') else str(user.role)
+
+        display_name = user.full_name or user.username
+        subtitle = user.city or "Пользователь"
+        avatar_url = user.avatar_url
+        badge_label = "Соискатель"
+        active_jobs_count = 0
+        applications_count = 0
+
+        if role_val == "employer":
+            badge_label = "Работодатель"
+            comp_stmt = select(Company).where(Company.employer_id == user_id)
+            comp_res = await self.session.execute(comp_stmt)
+            company = comp_res.scalar_one_or_none()
+            if company:
+                display_name = company.company_name or display_name
+                subtitle = company.industry or company.address or user.city or "Компания"
+                avatar_url = company.logo_url or avatar_url
+                
+                from app.models.domain import Job
+                job_stmt = select(Job).where(Job.company_id == company.id)
+                job_res = await self.session.execute(job_stmt)
+                active_jobs_count = len(job_res.scalars().all())
+
+        elif role_val == "worker":
+            badge_label = "Соискатель"
+            wp_stmt = select(WorkerProfile).where(WorkerProfile.user_id == user_id)
+            wp_res = await self.session.execute(wp_stmt)
+            wp = wp_res.scalar_one_or_none()
+            if wp and wp.desired_position:
+                subtitle = wp.desired_position
+            
+            from app.models.domain import Application
+            app_stmt = select(Application).where(Application.worker_id == user_id)
+            app_res = await self.session.execute(app_stmt)
+            applications_count = len(app_res.scalars().all())
+
+        elif role_val == "admin":
+            badge_label = "Администратор"
+            subtitle = "Платформа HamKor"
+
+        return {
+            "user_id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": user.role,
+            "is_email_verified": user.is_email_verified,
+            "display_name": display_name,
+            "subtitle": subtitle,
+            "avatar_url": avatar_url,
+            "city": user.city,
+            "badge_label": badge_label,
+            "active_jobs_count": active_jobs_count,
+            "applications_count": applications_count,
+            "created_at": user.created_at
+        }
+

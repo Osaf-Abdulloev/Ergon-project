@@ -287,3 +287,83 @@ class AITools:
     async def recommend_candidates(self, employer_id_str: str) -> List[Dict[str, Any]]:
         return await self.search_workers(limit=10)
 
+    async def get_employer_applications(self, employer_id_str: str, job_id_str: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Fetch real job applications for employer's jobs with strict permission enforcement."""
+        from app.services.application import ApplicationService
+        app_service = ApplicationService(self.session)
+        employer_id = uuid.UUID(employer_id_str)
+
+        if job_id_str:
+            job_id = uuid.UUID(job_id_str)
+            apps, _ = await app_service.get_job_applications(employer_id, job_id, limit=100)
+        else:
+            apps, _ = await app_service.get_all_employer_applications(employer_id, limit=100)
+
+        result = []
+        for a in apps:
+            candidate_name = a.worker.full_name or a.worker.username if a.worker else "Соискатель"
+            candidate_email = a.worker.email if a.worker else "Нет данных"
+            skills = []
+            position = "Не указана"
+            if a.worker and a.worker.worker_profile:
+                wp = a.worker.worker_profile
+                position = wp.desired_position or "Не указана"
+                skills = [ws.skill.name for ws in wp.worker_skills if ws.skill]
+
+            result.append({
+                "application_id": str(a.id),
+                "job_id": str(a.job_id),
+                "job_title": a.job.title if a.job else "Вакансия",
+                "candidate_id": str(a.worker_id),
+                "candidate_name": candidate_name,
+                "candidate_email": candidate_email,
+                "desired_position": position,
+                "skills": skills,
+                "cover_note": a.cover_note or a.cover_letter or "Без сопроводительного письма",
+                "status": a.status.value if hasattr(a.status, "value") else str(a.status),
+                "created_at": a.created_at.isoformat() if hasattr(a, "created_at") and a.created_at else ""
+            })
+        return result
+
+    async def accept_application_by_ai(self, employer_id_str: str, application_id_str: str, feedback: Optional[str] = None) -> Dict[str, Any]:
+        """Accept an application via AI request through backend ApplicationService."""
+        from app.services.application import ApplicationService
+        from app.models.enums import ApplicationStatus
+        app_service = ApplicationService(self.session)
+        employer_id = uuid.UUID(employer_id_str)
+        application_id = uuid.UUID(application_id_str)
+
+        updated_app = await app_service.update_application_status(
+            employer_id=employer_id,
+            application_id=application_id,
+            new_status=ApplicationStatus.ACCEPTED,
+            employer_feedback=feedback or "Отклик одобрен через ИИ-консультанта HamKor"
+        )
+        return {
+            "status": "success",
+            "application_id": str(updated_app.id),
+            "new_status": "accepted",
+            "message": f"Отклик кандидата успешно принят. Уведомление и письмо отправлены."
+        }
+
+    async def reject_application_by_ai(self, employer_id_str: str, application_id_str: str, feedback: Optional[str] = None) -> Dict[str, Any]:
+        """Reject an application via AI request through backend ApplicationService."""
+        from app.services.application import ApplicationService
+        from app.models.enums import ApplicationStatus
+        app_service = ApplicationService(self.session)
+        employer_id = uuid.UUID(employer_id_str)
+        application_id = uuid.UUID(application_id_str)
+
+        updated_app = await app_service.update_application_status(
+            employer_id=employer_id,
+            application_id=application_id,
+            new_status=ApplicationStatus.REJECTED,
+            employer_feedback=feedback or "Отклик отклонён через ИИ-консультанта HamKor"
+        )
+        return {
+            "status": "success",
+            "application_id": str(updated_app.id),
+            "new_status": "rejected",
+            "message": f"Отклик кандидата отклонён. Уведомление и письмо отправлены."
+        }
+

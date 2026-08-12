@@ -10,6 +10,7 @@ export interface UserProfileData {
   location: string;
   position: string;
   bio: string;
+  education?: string;
   expected_salary: string;
   relocation: 'not_ready' | 'ready_city' | 'ready_country' | 'ready_abroad';
   commute_time: 'up_to_15' | 'up_to_30' | 'up_to_60' | 'any';
@@ -43,6 +44,9 @@ export interface EmployerProfileData {
   offered_salary_min?: number;
   offered_salary_max?: number;
   avatar_url?: string;
+  logo_url?: string;
+  address?: string;
+  employee_count?: string;
 }
 
 export interface ProfileMatchScoreBreakdown {
@@ -65,26 +69,16 @@ export interface ProfileMatchEvaluation {
 }
 
 export const getSavedUserProfile = (user?: any): UserProfileData | null => {
+  if (!user || !user.id) return null;
   try {
-    const keysToTry: string[] = [];
-
-    if (user?.id) keysToTry.push(`ergon_user_profile_${user.id}`);
-    if (user?.username) keysToTry.push(`ergon_user_profile_uname_${user.username}`);
-    if (user?.email) keysToTry.push(`ergon_user_profile_email_${user.email.toLowerCase()}`);
-
-    const savedUserStr = localStorage.getItem('ergon_user');
-    if (savedUserStr) {
-      try {
-        const savedUser = JSON.parse(savedUserStr);
-        if (savedUser?.id) keysToTry.push(`ergon_user_profile_${savedUser.id}`);
-        if (savedUser?.username) keysToTry.push(`ergon_user_profile_uname_${savedUser.username}`);
-        if (savedUser?.email) keysToTry.push(`ergon_user_profile_email_${savedUser.email.toLowerCase()}`);
-      } catch (err) {}
-    }
-
-    keysToTry.push('ergon_user_profile_last_saved');
+    const keysToTry: string[] = [
+      `ergon_user_profile_${user.id}`,
+      `ergon_user_profile_uname_${user.username}`,
+      `ergon_user_profile_email_${user.email ? user.email.toLowerCase() : ''}`
+    ];
 
     for (const key of keysToTry) {
+      if (!key) continue;
       const data = localStorage.getItem(key);
       if (data) {
         try {
@@ -101,25 +95,16 @@ export const getSavedUserProfile = (user?: any): UserProfileData | null => {
 };
 
 export const saveUserProfile = (data: UserProfileData, user?: any): void => {
+  if (!user || !user.id) return;
   try {
-    const keysToSave: string[] = ['ergon_user_profile_last_saved'];
-
-    if (user?.id) keysToSave.push(`ergon_user_profile_${user.id}`);
-    if (user?.username) keysToSave.push(`ergon_user_profile_uname_${user.username}`);
-    if (user?.email) keysToSave.push(`ergon_user_profile_email_${user.email.toLowerCase()}`);
-
-    const savedUserStr = localStorage.getItem('ergon_user');
-    if (savedUserStr) {
-      try {
-        const savedUser = JSON.parse(savedUserStr);
-        if (savedUser?.id) keysToSave.push(`ergon_user_profile_${savedUser.id}`);
-        if (savedUser?.username) keysToSave.push(`ergon_user_profile_uname_${savedUser.username}`);
-        if (savedUser?.email) keysToSave.push(`ergon_user_profile_email_${savedUser.email.toLowerCase()}`);
-      } catch (err) {}
-    }
+    const keysToSave: string[] = [
+      `ergon_user_profile_${user.id}`,
+      `ergon_user_profile_uname_${user.username}`,
+      `ergon_user_profile_email_${user.email ? user.email.toLowerCase() : ''}`
+    ];
 
     keysToSave.forEach((key) => {
-      localStorage.setItem(key, JSON.stringify(data));
+      if (key) localStorage.setItem(key, JSON.stringify(data));
     });
 
     window.dispatchEvent(new Event('ergon_profile_updated'));
@@ -129,26 +114,16 @@ export const saveUserProfile = (data: UserProfileData, user?: any): void => {
 };
 
 export const getSavedEmployerProfile = (user?: any): EmployerProfileData | null => {
+  if (!user || !user.id) return null;
   try {
-    const keysToTry: string[] = [];
-
-    if (user?.id) keysToTry.push(`ergon_employer_profile_${user.id}`);
-    if (user?.username) keysToTry.push(`ergon_employer_profile_uname_${user.username}`);
-    if (user?.email) keysToTry.push(`ergon_employer_profile_email_${user.email.toLowerCase()}`);
-
-    const savedUserStr = localStorage.getItem('ergon_user');
-    if (savedUserStr) {
-      try {
-        const savedUser = JSON.parse(savedUserStr);
-        if (savedUser?.id) keysToTry.push(`ergon_employer_profile_${savedUser.id}`);
-        if (savedUser?.username) keysToTry.push(`ergon_employer_profile_uname_${savedUser.username}`);
-        if (savedUser?.email) keysToTry.push(`ergon_employer_profile_email_${savedUser.email.toLowerCase()}`);
-      } catch (err) {}
-    }
-
-    keysToTry.push('ergon_employer_profile_last_saved');
+    const keysToTry: string[] = [
+      `ergon_employer_profile_${user.id}`,
+      `ergon_employer_profile_uname_${user.username}`,
+      `ergon_employer_profile_email_${user.email ? user.email.toLowerCase() : ''}`
+    ];
 
     for (const key of keysToTry) {
+      if (!key) continue;
       const data = localStorage.getItem(key);
       if (data) {
         try {
@@ -165,25 +140,16 @@ export const getSavedEmployerProfile = (user?: any): EmployerProfileData | null 
 };
 
 export const saveEmployerProfile = (data: EmployerProfileData, user?: any): void => {
+  if (!user || !user.id) return;
   try {
-    const keysToSave: string[] = ['ergon_employer_profile_last_saved'];
-
-    if (user?.id) keysToSave.push(`ergon_employer_profile_${user.id}`);
-    if (user?.username) keysToSave.push(`ergon_employer_profile_uname_${user.username}`);
-    if (user?.email) keysToSave.push(`ergon_employer_profile_email_${user.email.toLowerCase()}`);
-
-    const savedUserStr = localStorage.getItem('ergon_user');
-    if (savedUserStr) {
-      try {
-        const savedUser = JSON.parse(savedUserStr);
-        if (savedUser?.id) keysToSave.push(`ergon_employer_profile_${savedUser.id}`);
-        if (savedUser?.username) keysToSave.push(`ergon_employer_profile_uname_${savedUser.username}`);
-        if (savedUser?.email) keysToSave.push(`ergon_employer_profile_email_${savedUser.email.toLowerCase()}`);
-      } catch (err) {}
-    }
+    const keysToSave: string[] = [
+      `ergon_employer_profile_${user.id}`,
+      `ergon_employer_profile_uname_${user.username}`,
+      `ergon_employer_profile_email_${user.email ? user.email.toLowerCase() : ''}`
+    ];
 
     keysToSave.forEach((key) => {
-      localStorage.setItem(key, JSON.stringify(data));
+      if (key) localStorage.setItem(key, JSON.stringify(data));
     });
 
     window.dispatchEvent(new Event('ergon_profile_updated'));

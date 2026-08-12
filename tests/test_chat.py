@@ -7,11 +7,11 @@ async def test_chat_creation_and_messaging(client):
     await client.post("/api/v1/auth/register/worker", json=u1_reg)
     await client.post("/api/v1/auth/register/worker", json=u2_reg)
 
-    l1 = await client.post("/api/v1/auth/login", json={"email": "user1_chat@example.com", "password": "password123"})
-    l2 = await client.post("/api/v1/auth/login", json={"email": "user2_chat@example.com", "password": "password123"})
+    v1 = await client.post("/api/v1/auth/verify-email", json={"email": "user1_chat@example.com", "code": "123456"})
+    v2 = await client.post("/api/v1/auth/verify-email", json={"email": "user2_chat@example.com", "code": "123456"})
 
-    u1_token = l1.json()["access_token"]
-    u2_token = l2.json()["access_token"]
+    u1_token = v1.json()["access_token"]
+    u2_token = v2.json()["access_token"]
     u2_id = (await client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {u2_token}"})).json()["id"]
 
     h1 = {"Authorization": f"Bearer {u1_token}"}

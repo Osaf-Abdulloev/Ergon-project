@@ -29,6 +29,8 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     role: UserRole
+    verification_token: Optional[str] = None
+    verification_code: Optional[str] = None
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
@@ -41,4 +43,12 @@ class PasswordResetConfirmRequest(BaseModel):
     new_password: str = Field(min_length=6)
 
 class VerifyEmailRequest(BaseModel):
-    token: str
+    token: Optional[str] = None
+    code: Optional[str] = None
+    email: Optional[EmailStr] = None
+
+class RegisterResponse(BaseModel):
+    message: str
+    email: str
+    is_email_verified: bool = False
+    role: UserRole

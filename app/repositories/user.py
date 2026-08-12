@@ -60,6 +60,14 @@ class TokenRepository:
         )
         return result.scalars().first()
 
+    async def get_latest_email_token_for_user(self, user_id: uuid.UUID) -> Optional[EmailVerificationToken]:
+        result = await self.session.execute(
+            select(EmailVerificationToken)
+            .where(EmailVerificationToken.user_id == user_id, EmailVerificationToken.used_at.is_(None))
+            .order_by(EmailVerificationToken.created_at.desc())
+        )
+        return result.scalars().first()
+
     async def create_password_token(self, token: PasswordResetToken) -> PasswordResetToken:
         self.session.add(token)
         await self.session.flush()

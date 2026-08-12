@@ -166,3 +166,17 @@ async def update_application_status(
     )
 
     return updated_app
+
+@router.post("/applications/{application_id}/contact")
+async def contact_candidate(
+    application_id: uuid.UUID,
+    current_user: User = Depends(require_roles([UserRole.EMPLOYER])),
+    db: AsyncSession = Depends(get_db)
+):
+    service = ApplicationService(db)
+    chat = await service.contact_candidate(current_user.id, application_id)
+    return {
+        "status": "success",
+        "chat_id": str(chat.id),
+        "message": "Чат с кандидатом успешно открыт"
+    }

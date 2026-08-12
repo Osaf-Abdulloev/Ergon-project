@@ -4,8 +4,8 @@ import pytest
 async def test_worker_and_company_profile_flow(client):
     w_reg = {"email": "worker_prof@example.com", "username": "worker_prof", "password": "password123"}
     await client.post("/api/v1/auth/register/worker", json=w_reg)
-    w_login = await client.post("/api/v1/auth/login", json={"email": "worker_prof@example.com", "password": "password123"})
-    w_token = w_login.json()["access_token"]
+    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "worker_prof@example.com", "code": "123456"})
+    w_token = w_verify.json()["access_token"]
     w_headers = {"Authorization": f"Bearer {w_token}"}
 
     update_prof_res = await client.put(
@@ -23,6 +23,13 @@ async def test_worker_and_company_profile_flow(client):
     prof = update_prof_res.json()
     assert prof["desired_position"] == "Backend Lead"
     assert len(prof["skills"]) == 3
+
+    sidebar_res = await client.get("/api/v1/users/me/sidebar-profile", headers=w_headers)
+    assert sidebar_res.status_code == 200
+    sb_data = sidebar_res.json()
+    assert sb_data["subtitle"] == "Backend Lead"
+    assert sb_data["badge_label"] == "Соискатель"
+
 
     exp_res = await client.post(
         "/api/v1/users/me/experience",
@@ -45,8 +52,8 @@ async def test_worker_and_company_profile_flow(client):
         "industry": "Fintech"
     }
     await client.post("/api/v1/auth/register/employer", json=e_reg)
-    e_login = await client.post("/api/v1/auth/login", json={"email": "emp_prof@example.com", "password": "password123"})
-    e_token = e_login.json()["access_token"]
+    e_verify = await client.post("/api/v1/auth/verify-email", json={"email": "emp_prof@example.com", "code": "123456"})
+    e_token = e_verify.json()["access_token"]
     e_headers = {"Authorization": f"Bearer {e_token}"}
 
     comp_res = await client.put(
@@ -66,8 +73,8 @@ async def test_worker_and_company_profile_flow(client):
 async def test_favorites_and_notifications(client):
     w_reg = {"email": "fav_user@example.com", "username": "fav_user", "password": "password123"}
     await client.post("/api/v1/auth/register/worker", json=w_reg)
-    w_login = await client.post("/api/v1/auth/login", json={"email": "fav_user@example.com", "password": "password123"})
-    w_token = w_login.json()["access_token"]
+    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "fav_user@example.com", "code": "123456"})
+    w_token = w_verify.json()["access_token"]
     w_headers = {"Authorization": f"Bearer {w_token}"}
 
     e_reg = {
@@ -78,8 +85,8 @@ async def test_favorites_and_notifications(client):
         "industry": "IT"
     }
     await client.post("/api/v1/auth/register/employer", json=e_reg)
-    e_login = await client.post("/api/v1/auth/login", json={"email": "fav_emp@example.com", "password": "password123"})
-    e_token = e_login.json()["access_token"]
+    e_verify = await client.post("/api/v1/auth/verify-email", json={"email": "fav_emp@example.com", "code": "123456"})
+    e_token = e_verify.json()["access_token"]
     e_headers = {"Authorization": f"Bearer {e_token}"}
 
     job_res = await client.post(

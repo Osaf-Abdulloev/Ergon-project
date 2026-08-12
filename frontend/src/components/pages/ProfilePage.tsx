@@ -86,6 +86,7 @@ export interface UserProfileData {
   location: string;
   position: string;
   bio: string;
+  education?: string;
   expected_salary: string;
   
   // Relocation & Commute Preferences
@@ -271,6 +272,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
     location: user?.city || 'г. Душанбе',
     position: '',
     bio: '',
+    education: '',
     expected_salary: '',
     relocation: 'not_ready',
     commute_time: 'any',
@@ -318,8 +320,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
               position: wp.desired_position || prev.position,
               expected_salary: wp.desired_salary ? `${wp.desired_salary} TJS` : prev.expected_salary,
               bio: wp.bio || prev.bio,
+              education: wp.education || prev.education,
+              relocation: wp.relocation_preference || prev.relocation,
+              commute_time: wp.commute_preference || prev.commute_time,
+              work_format: wp.work_format || prev.work_format,
+              has_driving_license: wp.has_driving_license ?? prev.has_driving_license,
+              driving_categories: wp.driving_categories || prev.driving_categories,
+              has_own_car: wp.has_own_car ?? prev.has_own_car,
               skills: wp.skills && wp.skills.length > 0 ? wp.skills.map((s: any) => s.name || s) : prev.skills,
-              portfolio_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.portfolio) || prev.portfolio_url
+              github_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.github) || prev.github_url,
+              portfolio_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.portfolio) || prev.portfolio_url,
+              linkedin_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.linkedin) || prev.linkedin_url,
+              telegram_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.telegram) || prev.telegram_url,
+              experiences: wp.experiences && wp.experiences.length > 0 ? wp.experiences : prev.experiences,
+              certificates: wp.certificates && wp.certificates.length > 0 ? wp.certificates : prev.certificates
             }));
           }
         } catch (e) {
@@ -408,6 +422,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
             desired_position: draftProfile.position,
             desired_salary: sal,
             bio: draftProfile.bio,
+            education: draftProfile.education,
+            relocation_preference: draftProfile.relocation,
+            commute_preference: draftProfile.commute_time,
+            work_format: draftProfile.work_format,
+            has_driving_license: draftProfile.has_driving_license,
+            driving_categories: draftProfile.driving_categories,
+            has_own_car: draftProfile.has_own_car,
             portfolio_links: {
               github: draftProfile.github_url,
               portfolio: draftProfile.portfolio_url,

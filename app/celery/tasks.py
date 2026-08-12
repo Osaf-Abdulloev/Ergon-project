@@ -13,10 +13,14 @@ logger = logging.getLogger("celery.tasks")
 def _run_async(coro):
     """Run an async coroutine in a new event loop (safe for sync Celery workers)."""
     loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
         return loop.run_until_complete(coro)
     finally:
-        loop.close()
+        try:
+            loop.close()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -73,6 +77,60 @@ def send_welcome_email_task(self, to_email: str, user_name: str = ""):
 
     logger.info("send_welcome_email_task completed | task_id=%s to=%s", self.request.id, to_email)
     return {"status": "sent", "to": to_email}
+
+
+@celery_app.task(
+    bind=True,
+    name="app.celery.tasks.send_verification_email_task",
+    max_retries=5,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+    soft_time_limit=30,
+    time_limit=60,
+)
+def send_verification_email_task(self, to_email: str, code: str):
+    """Send 6-digit email verification OTP code."""
+    logger.info(
+        "send_verification_email_task started | task_id=%s to=%s retry=%s",
+        self.request.id, to_email, self.request.retries,
+    )
+    from app.services.email_service import EmailService
+
+    success = EmailService.send_verification_code_email(to_email, code)
+    if not success:
+        logger.warning(f"Verification email send failed for {to_email} (check SMTP settings)")
+
+    logger.info("send_verification_email_task completed | task_id=%s to=%s", self.request.id, to_email)
+    return {"status": "processed", "to": to_email}
+
+
+@celery_app.task(
+    bind=True,
+    name="app.celery.tasks.send_application_status_email_task",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=180,
+    retry_jitter=True,
+    soft_time_limit=30,
+    time_limit=60,
+)
+def send_application_status_email_task(self, to_email: str, job_title: str, status_ru: str, feedback: str = ""):
+    """Send application status change notification email."""
+    logger.info(
+        "send_application_status_email_task started | task_id=%s to=%s status=%s retry=%s",
+        self.request.id, to_email, status_ru, self.request.retries,
+    )
+    from app.services.email_service import EmailService
+
+    success = EmailService.send_application_status_email(to_email, job_title, status_ru, feedback)
+    if not success:
+        logger.warning(f"Application status email send failed for {to_email}")
+
+    logger.info("send_application_status_email_task completed | task_id=%s to=%s", self.request.id, to_email)
+    return {"status": "processed", "to": to_email}
 
 
 # ---------------------------------------------------------------------------
@@ -310,3 +368,38 @@ def sync_telegram_vacancies_task(self, max_pages: int = 5):
         self.request.id, stats,
     )
     return {"status": "success", "stats": stats}
+
+
+@celery_app.task(
+    bind=True,
+    name="app.celery.tasks.sync_somon_vacancies_task",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def sync_somon_vacancies_task(self, max_pages: int = 10):
+    """Fetch and sync job vacancies from somon.tj."""
+    logger.info(
+        "sync_somon_vacancies_task started | task_id=%s max_pages=%s retry=%s",
+        self.request.id, max_pages, self.request.retries,
+    )
+
+    async def _run():
+        from app.database.session import AsyncSessionLocal
+        from app.services.somon_parser import SomonParserService
+
+        async with AsyncSessionLocal() as session:
+            parser = SomonParserService(session)
+            return await parser.fetch_and_sync(max_pages=max_pages)
+
+    stats = _run_async(_run())
+    logger.info(
+        "sync_somon_vacancies_task completed | task_id=%s stats=%s",
+        self.request.id, stats,
+    )
+    return {"status": "success", "stats": stats}
+

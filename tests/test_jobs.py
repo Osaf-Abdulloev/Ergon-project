@@ -10,8 +10,8 @@ async def test_job_lifecycle_and_application(client):
         "industry": "Software"
     }
     await client.post("/api/v1/auth/register/employer", json=emp_reg)
-    login_emp = await client.post("/api/v1/auth/login", json={"email": "emp_jobs@example.com", "password": "password123"})
-    emp_token = login_emp.json()["access_token"]
+    ver_emp = await client.post("/api/v1/auth/verify-email", json={"email": "emp_jobs@example.com", "code": "123456"})
+    emp_token = ver_emp.json()["access_token"]
     emp_headers = {"Authorization": f"Bearer {emp_token}"}
 
     job_data = {
@@ -37,8 +37,8 @@ async def test_job_lifecycle_and_application(client):
         "city": "Dushanbe"
     }
     await client.post("/api/v1/auth/register/worker", json=wrk_reg)
-    login_wrk = await client.post("/api/v1/auth/login", json={"email": "wrk_jobs@example.com", "password": "password123"})
-    wrk_token = login_wrk.json()["access_token"]
+    ver_wrk = await client.post("/api/v1/auth/verify-email", json={"email": "wrk_jobs@example.com", "code": "123456"})
+    wrk_token = ver_wrk.json()["access_token"]
     wrk_headers = {"Authorization": f"Bearer {wrk_token}"}
 
     app_res = await client.post("/api/v1/applications", json={"job_id": job_id, "cover_note": "I am a strong candidate."}, headers=wrk_headers)

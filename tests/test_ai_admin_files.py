@@ -5,8 +5,8 @@ import pytest
 async def test_ai_admin_and_file_endpoints(client):
     w_reg = {"email": "ai_user@example.com", "username": "ai_user", "password": "password123"}
     await client.post("/api/v1/auth/register/worker", json=w_reg)
-    w_login = await client.post("/api/v1/auth/login", json={"email": "ai_user@example.com", "password": "password123"})
-    w_token = w_login.json()["access_token"]
+    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "ai_user@example.com", "code": "123456"})
+    w_token = w_verify.json()["access_token"]
     w_headers = {"Authorization": f"Bearer {w_token}"}
 
     ai_chat_res = await client.post(
