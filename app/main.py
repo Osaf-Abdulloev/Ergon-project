@@ -127,50 +127,16 @@ async def lifespan(app: FastAPI):
                     email="admin@hamkor.tj",
                     username="superadmin",
                     full_name="Главный Администратор",
-                    password_hash=hash_password("AdminPassword2026!"),
+                    password_hash=hash_password("SuperAdminPassword2026!"),
                     role=UserRole.ADMIN,
                     is_email_verified=True,
                     is_active=True
                 )
                 session.add(admin_user)
-
-            # 2. Demo Worker
-            res_w = await session.execute(select(User).where((User.email == "worker@hamkor.tj") | (User.username == "worker")))
-            if not res_w.scalars().first():
-                worker_user = User(
-                    email="worker@hamkor.tj",
-                    username="worker",
-                    full_name="Соискатель Демо",
-                    password_hash=hash_password("Worker123!"),
-                    role=UserRole.WORKER,
-                    is_email_verified=True,
-                    is_active=True
-                )
-                session.add(worker_user)
-                await session.flush()
-                session.add(WorkerProfile(user_id=worker_user.id, desired_position="Фронтенд разработчик", bio="Опытный веб-разработчик"))
-
-
-            # 3. Demo Employer
-            res_e = await session.execute(select(User).where((User.email == "employer@hamkor.tj") | (User.username == "employer")))
-            if not res_e.scalars().first():
-                emp_user = User(
-                    email="employer@hamkor.tj",
-                    username="employer",
-                    full_name="Работодатель Демо",
-                    password_hash=hash_password("Employer123!"),
-                    role=UserRole.EMPLOYER,
-                    is_email_verified=True,
-                    is_active=True
-                )
-                session.add(emp_user)
-                await session.flush()
-                session.add(Company(employer_id=emp_user.id, company_name="ООО «Хамкор Текнолоджис»", inn="010066543", industry="IT & Телеком", is_verified=True))
-
-            try:
-                await session.commit()
-            except Exception:
-                await session.rollback()
+                try:
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
     except Exception as e:
         print(f"Startup seed warning: {e}")
 
