@@ -66,6 +66,14 @@ class WorkerProfileOut(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+from app.schemas.resume import ResumeOut
+
+class CandidateFullProfileOut(BaseModel):
+    profile: Optional[WorkerProfileOut] = None
+    published_resumes: List[ResumeOut] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
 class WorkerProfileUpdate(BaseModel):
     desired_position: Optional[str] = None
     desired_salary: Optional[float] = None

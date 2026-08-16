@@ -394,6 +394,11 @@ export const candidateService = {
     return response.data;
   },
 
+  getFullCandidateProfile: async (userId: string): Promise<{ profile: any; published_resumes: any[] }> => {
+    const response = await api.get(`/users/candidate/${userId}/full`);
+    return response.data;
+  },
+
   syncYoraCandidates: async (): Promise<any> => {
     const response = await api.post('/users/candidates/sync-yora');
     return response.data;

@@ -6,7 +6,8 @@ from app.database.session import get_db
 from app.schemas.user import UserOut, UserUpdate, UserSidebarProfileOut
 from app.schemas.profile import (
     WorkerProfileOut, WorkerProfileUpdate, CompanyOut, CompanyUpdate, 
-    ExperienceOut, ExperienceCreate, CertificateOut, CertificateCreate
+    ExperienceOut, ExperienceCreate, CertificateOut, CertificateCreate,
+    CandidateFullProfileOut
 )
 from app.schemas.common import PaginatedResponse, MessageResponse
 from app.services.user import UserService
@@ -201,6 +202,15 @@ async def get_worker_profile_by_id(
 ):
     service = UserService(db)
     return await service.get_worker_profile(user_id)
+
+@router.get("/candidate/{candidate_user_id}/full", response_model=CandidateFullProfileOut)
+async def get_candidate_full_profile_endpoint(
+    candidate_user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    service = UserService(db)
+    return await service.get_candidate_full_profile(candidate_user_id)
 
 @router.post("/candidates/sync-yora")
 async def sync_yora_candidates(

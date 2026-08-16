@@ -59,6 +59,22 @@ class UserService:
             profile = await self.worker_repo.get_by_user_id(user_id)
         return profile
 
+    async def get_candidate_full_profile(self, candidate_user_id: uuid.UUID) -> dict:
+        profile = await self.get_worker_profile(candidate_user_id)
+        
+        from app.models.domain import Resume
+        stmt = select(Resume).where(
+            Resume.user_id == candidate_user_id,
+            Resume.is_published == True
+        )
+        res = await self.session.execute(stmt)
+        published_resumes = res.scalars().all()
+
+        return {
+            "profile": profile,
+            "published_resumes": list(published_resumes)
+        }
+
     async def update_worker_profile(self, user_id: uuid.UUID, data: WorkerProfileUpdate) -> WorkerProfile:
         profile = await self.worker_repo.get_by_user_id(user_id)
         if not profile:

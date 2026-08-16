@@ -28,32 +28,38 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   const [publishedResume, setPublishedResume] = useState<any | null>(null);
   const [fullProfile, setFullProfile] = useState<any | null>(candidate);
   const [viewTab, setViewTab] = useState<'profile' | 'resume'>('profile');
+  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     setFullProfile(candidate);
     if (candidate && (candidate.user_id || (candidate as any).user?.id || candidate.id)) {
       const uId = candidate.user_id || (candidate as any).user?.id || candidate.id;
+      setLoading(true);
 
-      // 1. Fetch complete worker profile with all real skills, experiences, certificates from PostgreSQL
-      candidateService.getCandidateProfile(uId.toString()).then((res) => {
-        if (res) {
-          setFullProfile(res);
-        }
-      }).catch((err) => console.error('Error fetching candidate worker profile from PostgreSQL:', err));
-
-      // 2. Fetch candidate's real published AI Resume from PostgreSQL
-      resumeService.getCandidatePublishedResume(uId.toString()).then((res) => {
-        if (res) {
-          setPublishedResume(res);
-          setViewTab('resume');
-        } else {
-          setPublishedResume(null);
-          setViewTab('profile');
-        }
-      });
+      // Fetch atomic full candidate profile AND published resumes directly from PostgreSQL
+      candidateService.getFullCandidateProfile(uId.toString())
+        .then((data) => {
+          if (data && data.profile) {
+            setFullProfile(data.profile);
+          }
+          if (data && data.published_resumes && data.published_resumes.length > 0) {
+            setPublishedResume(data.published_resumes[0]);
+            setViewTab('resume');
+          } else {
+            setPublishedResume(null);
+            setViewTab('profile');
+          }
+        })
+        .catch((err) => {
+          console.error('Error fetching candidate full profile from PostgreSQL:', err);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     } else {
       setPublishedResume(null);
       setViewTab('profile');
+      setLoading(false);
     }
   }, [candidate]);
 
@@ -178,7 +184,13 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
 
       {/* 2. MAIN SCROLLABLE CONTENT BODY */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {publishedResume && viewTab === 'resume' ? (
+        {loading ? (
+          <div className="p-8 sm:p-12 max-w-4xl mx-auto space-y-6 animate-pulse">
+            <div className="h-32 bg-slate-900 rounded-3xl border border-slate-800" />
+            <div className="h-48 bg-slate-900 rounded-3xl border border-slate-800" />
+            <div className="h-48 bg-slate-900 rounded-3xl border border-slate-800" />
+          </div>
+        ) : publishedResume && viewTab === 'resume' ? (
           <div className="p-6 sm:p-12 max-w-4xl mx-auto space-y-6">
             <div className="p-4 rounded-2xl bg-indigo-900/60 border border-indigo-700/50 text-indigo-100 text-xs font-semibold flex items-center justify-between gap-4 shadow-md">
               <div className="flex items-center gap-2">
