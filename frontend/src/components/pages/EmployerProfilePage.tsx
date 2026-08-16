@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Save, Eye, Check, Search, ChevronDown, User, ArrowUpRight, Filter
 } from 'lucide-react';
 import { Candidate } from '../../types';
-import { candidateService, profileService } from '../../services/api';
+import { candidateService, profileService, fileService } from '../../services/api';
 import { 
   getSavedEmployerProfile, 
   saveEmployerProfile, 
@@ -28,19 +28,20 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
   onNavigateToPostJob
 }) => {
   const [profile, setProfile] = useState<EmployerProfileData>({
-    company_name: user?.company_name || user?.full_name || user?.username || 'ООО "Инновации Таджикистана"',
-    industry: 'Информационные технологии / Разработка ПО',
-    company_description: 'Наша компания занимается разработкой высоконагруженных веб-сервисов и мобильных приложений.',
+    company_name: user?.company_name || user?.full_name || user?.username || '',
+    inn: '',
+    industry: '',
+    company_description: '',
     location: user?.city || 'г. Душанбе',
     address: '',
-    website: 'https://company.tj',
-    contact_email: user?.email || 'hr@company.tj',
-    contact_phone: user?.phone || '+992 900 00 0000',
-    target_position: 'Бухгалтер / Финансовый специалист',
-    required_skills: ['1С:Бухгалтерия', 'Налоги', 'Финансовый учет'],
-    min_experience_years: '1-3 года',
-    offered_salary_min: 6000,
-    offered_salary_max: 12000,
+    website: '',
+    contact_email: user?.email || '',
+    contact_phone: user?.phone || '',
+    target_position: '',
+    required_skills: [],
+    min_experience_years: '',
+    offered_salary_min: undefined,
+    offered_salary_max: undefined,
     avatar_url: user?.avatar_url || '',
     logo_url: user?.avatar_url || ''
   });
@@ -51,54 +52,38 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'matches'>('profile');
 
-  // Load saved profile from backend DB on mount & auto-fill registration company name
+  // Load profile strictly from backend PostgreSQL DB on mount
   useEffect(() => {
     const loadCompanyBackendProfile = async () => {
       if (user?.id) {
         try {
           const cp = await profileService.getCompanyProfile();
           if (cp) {
-            setProfile((prev) => ({
-              ...prev,
-              company_name: cp.company_name || user.company_name || user.full_name || prev.company_name,
-              industry: cp.industry || prev.industry,
-              company_description: cp.description || prev.company_description,
-              location: cp.address || user.city || prev.location,
-              website: cp.website || prev.website,
-              contact_email: cp.contact_email || user.email || prev.contact_email,
-              contact_phone: cp.contact_phone || user.phone || prev.contact_phone,
-              employee_count: cp.employee_count || prev.employee_count,
-              logo_url: cp.logo_url || user.avatar_url || prev.logo_url,
-              avatar_url: cp.logo_url || user.avatar_url || prev.avatar_url,
-              address: cp.address || prev.address || ''
-            }));
+            setProfile({
+              company_name: cp.company_name || user.company_name || user.full_name || user.username || '',
+              inn: cp.inn || '',
+              industry: cp.industry || '',
+              company_description: cp.description || '',
+              location: cp.address || user.city || 'г. Душанбе',
+              address: cp.address || '',
+              website: cp.website || '',
+              contact_email: cp.contact_email || user.email || '',
+              contact_phone: cp.contact_phone || user.phone || '',
+              employee_count: cp.employee_count || '',
+              logo_url: cp.logo_url || user.avatar_url || '',
+              avatar_url: cp.logo_url || user.avatar_url || '',
+              target_position: cp.target_position || '',
+              required_skills: Array.isArray(cp.required_skills) ? cp.required_skills : [],
+              min_experience_years: cp.min_experience_years || '',
+              offered_salary_min: cp.offered_salary_min ?? undefined,
+              offered_salary_max: cp.offered_salary_max ?? undefined
+            });
           }
         } catch (e) {
           console.error('Failed to load company profile from backend DB:', e);
         }
       }
     };
-
-    const saved = getSavedEmployerProfile(user);
-    if (saved) {
-      setProfile((prev) => ({ 
-        ...prev, 
-        ...saved,
-        company_name: saved.company_name || user?.company_name || user?.full_name || user?.username || prev.company_name,
-        logo_url: saved.logo_url || saved.avatar_url || user?.avatar_url || prev.logo_url,
-        avatar_url: saved.logo_url || saved.avatar_url || user?.avatar_url || prev.avatar_url,
-        address: saved.address || prev.address || '',
-        contact_email: saved.contact_email || user?.email || prev.contact_email
-      }));
-    } else if (user) {
-      setProfile((prev) => ({
-        ...prev,
-        company_name: user?.company_name || user?.full_name || user?.username || prev.company_name,
-        logo_url: user?.avatar_url || prev.logo_url,
-        avatar_url: user?.avatar_url || prev.avatar_url,
-        location: user?.city || prev.location
-      }));
-    }
 
     loadCompanyBackendProfile();
   }, [user?.id]);
@@ -120,50 +105,121 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
     }
 
     try {
-      // 1. Update Company Profile in SQLite Database
-      await profileService.updateCompanyProfile({
+      const rawMin = profile.offered_salary_min as any;
+      const cleanSalaryMin = (rawMin !== '' && rawMin !== null && rawMin !== undefined)
+        ? parseFloat(String(rawMin))
+        : undefined;
+
+      const rawMax = profile.offered_salary_max as any;
+      const cleanSalaryMax = (rawMax !== '' && rawMax !== null && rawMax !== undefined)
+        ? parseFloat(String(rawMax))
+        : undefined;
+
+      const logoUrl = (profile.logo_url || profile.avatar_url) ? (profile.logo_url || profile.avatar_url) : undefined;
+
+      // 1. Update Company Profile in PostgreSQL Database
+      const updatedCp = await profileService.updateCompanyProfile({
         company_name: profile.company_name,
-        industry: profile.industry,
-        description: profile.company_description,
-        website: profile.website,
-        contact_email: profile.contact_email,
-        contact_phone: profile.contact_phone,
-        address: profile.address || profile.location,
-        logo_url: profile.logo_url || profile.avatar_url,
-        employee_count: (profile as any).employee_count
+        inn: profile.inn || undefined,
+        industry: profile.industry || undefined,
+        description: profile.company_description || undefined,
+        website: profile.website || undefined,
+        contact_email: profile.contact_email || undefined,
+        contact_phone: profile.contact_phone || undefined,
+        address: profile.address || profile.location || undefined,
+        logo_url: logoUrl,
+        employee_count: (profile as any).employee_count || undefined,
+        target_position: profile.target_position || undefined,
+        required_skills: profile.required_skills,
+        min_experience_years: profile.min_experience_years || undefined,
+        offered_salary_min: Number.isNaN(cleanSalaryMin) ? undefined : cleanSalaryMin,
+        offered_salary_max: Number.isNaN(cleanSalaryMax) ? undefined : cleanSalaryMax
       });
 
-      // 2. Update User Details in SQLite Database
-      await profileService.updateUser({
+      // 2. Update User Details in PostgreSQL Database
+      const updatedUser = await profileService.updateUser({
         full_name: profile.company_name,
-        avatar_url: profile.logo_url || profile.avatar_url,
-        phone: profile.contact_phone,
-        city: profile.location
+        avatar_url: logoUrl,
+        phone: profile.contact_phone || undefined,
+        city: profile.location || undefined
       });
 
-      // 3. Save to localStorage & trigger update event
-      saveEmployerProfile(profile, user);
+      // Update local user in localStorage & trigger event so Navbar updates immediately
+      if (updatedUser) {
+        const storedUser = localStorage.getItem('ergon_user');
+        if (storedUser) {
+          try {
+            const parsed = JSON.parse(storedUser);
+            const merged = { ...parsed, ...updatedUser, avatar_url: profile.logo_url || profile.avatar_url };
+            localStorage.setItem('ergon_user', JSON.stringify(merged));
+            window.dispatchEvent(new Event('ergon_user_updated'));
+          } catch (e) {
+            console.error('Error updating ergon_user in localStorage:', e);
+          }
+        }
+      }
+
+      // 3. Update local state directly from backend response
+      if (updatedCp) {
+        setProfile({
+          company_name: updatedCp.company_name || profile.company_name,
+          inn: updatedCp.inn || '',
+          industry: updatedCp.industry || '',
+          company_description: updatedCp.description || '',
+          location: updatedCp.address || profile.location,
+          address: updatedCp.address || '',
+          website: updatedCp.website || '',
+          contact_email: updatedCp.contact_email || profile.contact_email,
+          contact_phone: updatedCp.contact_phone || profile.contact_phone,
+          employee_count: updatedCp.employee_count || '',
+          logo_url: updatedCp.logo_url || profile.logo_url,
+          avatar_url: updatedCp.logo_url || profile.avatar_url,
+          target_position: updatedCp.target_position || '',
+          required_skills: Array.isArray(updatedCp.required_skills) ? updatedCp.required_skills : profile.required_skills,
+          min_experience_years: updatedCp.min_experience_years || '',
+          offered_salary_min: updatedCp.offered_salary_min ?? profile.offered_salary_min,
+          offered_salary_max: updatedCp.offered_salary_max ?? profile.offered_salary_max
+        });
+      }
+
       setIsSavedNotice(true);
       setTimeout(() => setIsSavedNotice(false), 4000);
     } catch (err) {
       console.error('Failed to save company profile to backend DB:', err);
+      alert('Ошибка при сохранении профиля компании. Попробуйте снова.');
     }
   };
 
-  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setProfile((prev) => ({
-          ...prev,
-          logo_url: base64String,
-          avatar_url: base64String
-        }));
-      };
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    // 1. Convert to base64 preview immediately so UI shows the uploaded picture instantly
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      setProfile((prev) => ({
+        ...prev,
+        logo_url: base64String,
+        avatar_url: base64String
+      }));
+
+      // 2. Upload file to backend server storage (/api/v1/files/upload)
+      try {
+        const uploadRes = await fileService.uploadFile(file, 'logos');
+        if (uploadRes && (uploadRes.url || uploadRes.file_url)) {
+          const uploadedUrl = uploadRes.url || uploadRes.file_url;
+          setProfile((prev) => ({
+            ...prev,
+            logo_url: uploadedUrl,
+            avatar_url: uploadedUrl
+          }));
+        }
+      } catch (err) {
+        console.warn('Backend file upload failed, falling back to base64 string:', err);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleAddSkill = () => {
@@ -323,7 +379,7 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
                     <input type="file" accept="image/*" onChange={handleLogoFileUpload} className="hidden" />
                   </label>
                   <input
-                    type="url"
+                    type="text"
                     placeholder="Или вставьте URL картинки логотипа"
                     value={profile.logo_url || ''}
                     onChange={(e) => setProfile({ ...profile, logo_url: e.target.value, avatar_url: e.target.value })}
@@ -349,6 +405,20 @@ export const EmployerProfilePage: React.FC<EmployerProfilePageProps> = ({
                   placeholder="Например: ЗАО Банк Арванд / ООО ТоргКомплекс"
                   value={profile.company_name}
                   onChange={(e) => setProfile({ ...profile, company_name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100 transition-all"
+                />
+              </div>
+
+              {/* Company INN */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  ИНН компании
+                </label>
+                <input
+                  type="text"
+                  placeholder="Например: 040012345"
+                  value={profile.inn || ''}
+                  onChange={(e) => setProfile({ ...profile, inn: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-bold outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100 transition-all"
                 />
               </div>

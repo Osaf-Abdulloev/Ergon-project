@@ -4,7 +4,7 @@ from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, update
 from app.models.domain import Chat, ChatParticipant, Message, User
 from app.repositories.base import BaseRepository
 
@@ -24,12 +24,11 @@ class ChatRepository(BaseRepository[Chat]):
     async def get_user_chats(self, user_id: uuid.UUID, skip: int = 0, limit: int = 20) -> Tuple[List[Chat], int]:
         chat_ids_query = select(ChatParticipant.chat_id).where(ChatParticipant.user_id == user_id)
         query = select(Chat).options(
-            selectinload(Chat.participants).selectinload(ChatParticipant.user),
-            selectinload(Chat.messages)
+            selectinload(Chat.participants).selectinload(ChatParticipant.user)
         ).where(Chat.id.in_(chat_ids_query))
 
-        count_query = select(func.count()).select_from(query.subquery())
-        total = (await self.session.execute(count_query)).scalar_one()
+        count_stmt = select(func.count(ChatParticipant.chat_id)).where(ChatParticipant.user_id == user_id)
+        total = (await self.session.execute(count_stmt)).scalar_one()
 
         # Order by last_message_at desc, fallback created_at
         result = await self.session.execute(
@@ -77,8 +76,8 @@ class MessageRepository(BaseRepository[Message]):
         limit: int = 50
     ) -> Tuple[List[Message], int]:
         query = select(Message).where(Message.chat_id == chat_id, Message.is_deleted == False)
-        count_query = select(func.count()).select_from(query.subquery())
-        total = (await self.session.execute(count_query)).scalar_one()
+        count_stmt = select(func.count(Message.id)).where(Message.chat_id == chat_id, Message.is_deleted == False)
+        total = (await self.session.execute(count_stmt)).scalar_one()
 
         result = await self.session.execute(
             query.order_by(Message.created_at.desc()).offset(skip).limit(limit)
@@ -88,10 +87,9 @@ class MessageRepository(BaseRepository[Message]):
         return messages, total
 
     async def mark_messages_as_read(self, chat_id: uuid.UUID, user_id: uuid.UUID) -> None:
-        result = await self.session.execute(
-            select(Message).where(Message.chat_id == chat_id, Message.sender_id != user_id, Message.is_read == False)
+        await self.session.execute(
+            update(Message)
+            .where(Message.chat_id == chat_id, Message.sender_id != user_id, Message.is_read == False)
+            .values(is_read=True)
         )
-        messages = result.scalars().all()
-        for msg in messages:
-            msg.is_read = True
         await self.session.flush()

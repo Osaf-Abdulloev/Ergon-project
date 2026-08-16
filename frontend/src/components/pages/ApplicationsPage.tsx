@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileText, Building2, MapPin, Calendar, Clock, CheckCircle2, XCircle, ArrowRight, User, MessageSquare, Eye, ChevronDown } from 'lucide-react';
-import { applicationService } from '../../services/api';
+import { applicationService, jobService } from '../../services/api';
+import { chatService } from '../../services/chatService';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { RealtimeChatModal } from '../chat/RealtimeChatModal';
 import { CandidateDetailModal } from '../candidates/CandidateDetailModal';
@@ -10,7 +11,8 @@ interface ApplicationsPageProps {
   user?: any;
   onOpenAuth?: () => void;
   onSelectJob?: (job: any) => void;
-  onNavigateToChat?: (recipientId: string) => void;
+  onNavigateToChat?: (recipientId: string | null) => void;
+  selectedJobIdFilter?: string | null;
 }
 
 export interface UserApplication {
@@ -27,33 +29,20 @@ export interface UserApplication {
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'REVIEWED' | 'CANCELLED';
   worker_id?: string;
   worker_data?: any;
+  employer_id?: string;
+  company_user_id?: string;
 }
 
-export const getSavedApplications = (userId?: string): UserApplication[] => {
-  if (!userId) return [];
-  try {
-    const data = localStorage.getItem(`ergon_user_applications_${userId}`);
-    if (data) return JSON.parse(data);
-  } catch (e) {
-    console.error('Failed to load applications:', e);
-  }
-  return [];
-};
+export const getSavedApplications = (_userId?: string): UserApplication[] => [];
+export const saveUserApplication = (_userId: string, _app: UserApplication) => {};
 
-export const saveUserApplication = (userId: string, app: UserApplication) => {
-  if (!userId) return;
-  try {
-    const existing = getSavedApplications(userId);
-    const filtered = existing.filter((a) => a.job_id !== app.job_id);
-    const updated = [app, ...filtered];
-    localStorage.setItem(`ergon_user_applications_${userId}`, JSON.stringify(updated));
-    window.dispatchEvent(new Event('ergon_applications_updated'));
-  } catch (e) {
-    console.error('Failed to save application:', e);
-  }
-};
-
-export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpenAuth, onSelectJob, onNavigateToChat }) => {
+export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({
+  user,
+  onOpenAuth,
+  onSelectJob,
+  onNavigateToChat,
+  selectedJobIdFilter = null
+}) => {
   const { t } = useLanguage();
 
   if (!user) {
@@ -85,8 +74,25 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
 
   const [applications, setApplications] = useState<UserApplication[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected' | 'cancelled'>('all');
+  const [selectedJobId, setSelectedJobId] = useState<string>(selectedJobIdFilter || 'all');
+  const [employerJobs, setEmployerJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedJobIdFilter) {
+      setSelectedJobId(selectedJobIdFilter);
+    }
+  }, [selectedJobIdFilter]);
+
+  // Load list of employer's created jobs for the filter dropdown
+  useEffect(() => {
+    if (user && user.role === 'employer') {
+      jobService.getMyJobs({ limit: 100 }).then((res) => {
+        setEmployerJobs(res.items || []);
+      }).catch((e) => console.error('Failed to fetch employer jobs list:', e));
+    }
+  }, [user]);
 
   // Edit Cover Note State
   const [editingCoverApp, setEditingCoverApp] = useState<UserApplication | null>(null);
@@ -103,12 +109,12 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
 
   const loadApplications = async () => {
     setIsLoading(true);
-    const localApps = getSavedApplications(user.id);
     let apiApps: UserApplication[] = [];
 
     try {
       if (user.role === 'employer') {
-        const res = await applicationService.getEmployerApplications(filter !== 'all' ? filter : undefined);
+        const jobIdParam = selectedJobId !== 'all' ? selectedJobId : undefined;
+        const res = await applicationService.getEmployerApplications(filter !== 'all' ? filter : undefined, jobIdParam);
         apiApps = (res.items || res).map((item: any) => {
           const wUser = item.worker?.user || item.worker || {};
           const jJob = item.job || {};
@@ -143,23 +149,17 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
             cover_note: item.cover_letter || item.cover_note || '',
             employer_feedback: item.employer_feedback || '',
             applied_at: new Date(item.created_at || Date.now()).toLocaleDateString(),
-            status: (item.status || 'PENDING').toUpperCase() as any
+            status: (item.status || 'PENDING').toUpperCase() as any,
+            employer_id: item.employer_id || item.company_user_id || jJob.company?.employer_id || jJob.employer_id,
+            company_user_id: item.company_user_id || item.employer_id || jJob.company?.employer_id || jJob.employer_id
           };
         });
       }
     } catch (e) {
-      console.error('Failed to fetch applications from API, using local storage:', e);
+      console.error('Failed to fetch applications from PostgreSQL API:', e);
     }
 
-    const appMap = new Map<string, UserApplication>();
-    apiApps.forEach((a) => appMap.set(a.id || a.job_id, a));
-    localApps.forEach((a) => {
-      if (!appMap.has(a.id || a.job_id)) {
-        appMap.set(a.id || a.job_id, a);
-      }
-    });
-
-    setApplications(Array.from(appMap.values()));
+    setApplications(apiApps);
     setIsLoading(false);
   };
 
@@ -167,8 +167,39 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
     loadApplications();
     const handleUpdate = () => loadApplications();
     window.addEventListener('ergon_applications_updated', handleUpdate);
-    return () => window.removeEventListener('ergon_applications_updated', handleUpdate);
-  }, [user.id, user.role, filter]);
+
+    const token = localStorage.getItem('ergon_access_token') || localStorage.getItem('ergon_token') || '';
+    let wsConn: any = null;
+    if (token) {
+      wsConn = chatService.connectWebSocket(
+        token,
+        () => {},
+        () => {},
+        (eventData) => {
+          if (eventData && eventData.event === 'application_status_changed') {
+            const appStatus = eventData.status ? eventData.status.toUpperCase() : 'PENDING';
+            setApplications((prev) =>
+              prev.map((a) => {
+                if (a.id === eventData.application_id || a.job_id === eventData.job_id) {
+                  return {
+                    ...a,
+                    status: appStatus as any,
+                    employer_feedback: eventData.employer_feedback !== undefined ? eventData.employer_feedback : a.employer_feedback
+                  };
+                }
+                return a;
+              })
+            );
+          }
+        }
+      );
+    }
+
+    return () => {
+      window.removeEventListener('ergon_applications_updated', handleUpdate);
+      if (wsConn) wsConn.close();
+    };
+  }, [user.id, user.role, filter, selectedJobId]);
 
   const handleUpdateStatus = async (appId: string, newStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'CANCELLED', feedback?: string) => {
     setUpdatingId(appId);
@@ -214,7 +245,8 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
   };
 
   const handleViewCandidateProfile = (app: UserApplication) => {
-    const wData = app.worker_data?.user || app.worker_data || {};
+    const aAny = app as any;
+    const wData = aAny.worker || aAny.worker_data?.user || aAny.worker_data || {};
     const wProfile = app.worker_data || {};
     const candidateObj: any = {
       id: app.worker_id || app.id,
@@ -228,9 +260,9 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
       experiences: wProfile.experiences || [],
       user: {
         id: app.worker_id || app.id,
-        full_name: wData.full_name || app.company_name || 'Соискатель',
-        username: wData.username || app.company_name,
-        avatar_url: wData.avatar_url || app.logo_url,
+        full_name: wData.full_name || wData.username || (app as any).worker_name || 'Соискатель',
+        username: wData.username || (app as any).worker_name || 'applicant',
+        avatar_url: wData.avatar_url,
         city: wData.city || app.location || 'Душанбе',
         phone: wData.phone || '',
         email: wData.email || ''
@@ -252,16 +284,38 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
     <div className="space-y-6 max-w-5xl mx-auto pb-16 animate-fade-in">
       
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            {user?.role === 'employer' ? t('apps.employer_title') : t('apps.worker_title')}
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-            {user?.role === 'employer'
-              ? t('apps.employer_sub')
-              : t('apps.worker_sub')}
-          </p>
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+              {user?.role === 'employer' ? t('apps.employer_title') : t('apps.worker_title')}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
+              {user?.role === 'employer'
+                ? t('apps.employer_sub')
+                : t('apps.worker_sub')}
+            </p>
+          </div>
+
+          {/* Job Filter Dropdown for Employer */}
+          {user?.role === 'employer' && employerJobs.length > 0 && (
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-2xs">
+              <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 ml-1" />
+              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">Вакансия:</span>
+              <select
+                value={selectedJobId}
+                onChange={(e) => setSelectedJobId(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-black text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <option value="all">Все вакансии (Все откликанты)</option>
+                {employerJobs.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.title} ({j.location || 'Душанбе'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Filter Badges */}
@@ -392,11 +446,15 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
                 </div>
               )}
 
-              {/* WORKER ACTION BUTTONS (Edit Cover Note / Cancel Application) */}
+              {/* WORKER ACTION BUTTONS (Edit Cover Note / Cancel Application / Chat with Employer) */}
               {user?.role !== 'employer' && (
                 <div className="pt-2 flex flex-wrap items-center justify-between gap-3">
                   <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    {app.status === 'REJECTED' ? (
+                    {app.status === 'ACCEPTED' ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center gap-1">
+                        🎉 Работодатель принял ваш отклик! Вы можете написать работодателю прямо в чате.
+                      </span>
+                    ) : app.status === 'REJECTED' ? (
                       <span className="text-rose-600 dark:text-rose-400 font-bold">
                         ⚠️ Работодатель отклонил этот отклик. Повторный отклик невозможен.
                       </span>
@@ -409,51 +467,88 @@ export const ApplicationsPage: React.FC<ApplicationsPageProps> = ({ user, onOpen
                     )}
                   </div>
 
-                  {(app.status === 'PENDING' || app.status === 'REVIEWED') && (
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    {app.status === 'ACCEPTED' && (
                       <button
                         onClick={() => {
-                          setEditingCoverApp(app);
-                          setNewCoverNote(app.cover_note || '');
+                          const empId = app.employer_id || app.company_user_id;
+                          if (onNavigateToChat) {
+                            onNavigateToChat(empId || null);
+                          }
                         }}
-                        className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all"
+                        className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black flex items-center gap-2 transition-all shadow-md active:scale-95 animate-pulse"
                       >
-                        Редактировать письмо
+                        <MessageSquare className="w-4 h-4" />
+                        <span>Написать работодателю</span>
                       </button>
-                      <button
-                        onClick={() => handleCancelApplication(app.id)}
-                        className="px-3.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-600 dark:text-rose-400 text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all"
-                      >
-                        Отменить отклик
-                      </button>
-                    </div>
-                  )}
+                    )}
+
+                    {(app.status === 'PENDING' || app.status === 'REVIEWED') && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingCoverApp(app);
+                            setNewCoverNote(app.cover_note || '');
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all"
+                        >
+                          Редактировать письмо
+                        </button>
+                        <button
+                          onClick={() => handleCancelApplication(app.id)}
+                          className="px-3.5 py-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 text-rose-600 dark:text-rose-400 text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all"
+                        >
+                          Отменить отклик
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {/* EMPLOYER ACTION BAR */}
+              {/* EMPLOYER ACTION BAR WITH ANIMATED REJECT BUTTON */}
               {user?.role === 'employer' && (
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Изменить статус:</span>
-                    <select
-                      value={app.status}
-                      onChange={(e) => {
-                        const newSt = e.target.value as any;
-                        if (newSt === 'REJECTED' || newSt === 'ACCEPTED') {
-                          setFeedbackApp({ id: app.id, status: newSt });
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 shrink-0">Статус:</span>
+                    
+                    {/* Quick Accept & Animated Reject Buttons */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setFeedbackApp({ id: app.id, status: 'ACCEPTED' });
                           setFeedbackNote('');
-                        } else {
-                          handleUpdateStatus(app.id, newSt);
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 outline-none cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800 transition-all"
-                    >
-                      <option value="PENDING">В рассмотрении</option>
-                      <option value="ACCEPTED">Принять на собеседование</option>
-                      <option value="REJECTED">Отклонить отклик</option>
-                      <option value="CANCELLED">Отменено соискателем</option>
-                    </select>
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 ${
+                          app.status === 'ACCEPTED'
+                            ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/40'
+                            : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-600 hover:text-white'
+                        }`}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{app.status === 'ACCEPTED' ? 'Принято' : 'Принять'}</span>
+                      </button>
+
+                      {/* Smooth Animated Reject Button */}
+                      <div
+                        className={`transition-all duration-500 ease-in-out transform origin-left ${
+                          app.status === 'ACCEPTED'
+                            ? 'opacity-0 max-w-0 scale-90 overflow-hidden pointer-events-none p-0 border-0 shadow-none -ml-2'
+                            : 'opacity-100 max-w-[140px] scale-100 ml-0'
+                        }`}
+                      >
+                        <button
+                          onClick={() => {
+                            setFeedbackApp({ id: app.id, status: 'REJECTED' });
+                            setFeedbackNote('');
+                          }}
+                          className="px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-600 hover:text-white text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shadow-2xs active:scale-95"
+                        >
+                          <XCircle className="w-4 h-4" />
+                          <span>Отклонить</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2.5">

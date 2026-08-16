@@ -5,9 +5,13 @@ celery_app = Celery(
     "ergon_tasks",
     broker=settings.CELERY_BROKER_URL or settings.REDIS_URL,
     backend=settings.CELERY_RESULT_BACKEND or settings.REDIS_URL,
+    include=["app.celery.tasks"]
 )
 
 celery_app.conf.update(
+    # Explicit task imports
+    imports=["app.celery.tasks"],
+
     # Serialization — JSON only, no pickle
     task_serializer="json",
     accept_content=["json"],
@@ -33,6 +37,9 @@ celery_app.conf.update(
     task_routes={
         "app.celery.tasks.send_email_task": {"queue": "notifications"},
         "app.celery.tasks.send_welcome_email_task": {"queue": "notifications"},
+        "app.celery.tasks.send_verification_email_task": {"queue": "notifications"},
+        "app.celery.tasks.send_application_status_email_task": {"queue": "notifications"},
+        "app.celery.tasks.send_password_reset_email_task": {"queue": "notifications"},
         "app.celery.tasks.send_telegram_notification_task": {"queue": "notifications"},
         "app.celery.tasks.dispatch_notification_task": {"queue": "notifications"},
         "app.celery.tasks.ai_analysis_task": {"queue": "ai_tasks"},

@@ -589,24 +589,34 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = ({ onJobCreat
                     <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-3">
                       {/* Action buttons: Accept / Reject / Status Selector */}
                       <div className="flex flex-wrap items-center gap-2">
-                        {app.status === 'PENDING' || app.status === 'REVIEWED' || app.can_accept ? (
-                          <>
-                            <button
-                              onClick={() => handleUpdateAppStatus(app.id, 'ACCEPTED')}
-                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
-                            >
-                              <Check className="w-4 h-4" />
-                              <span>Принять отклик</span>
-                            </button>
-                            <button
-                              onClick={() => handleUpdateAppStatus(app.id, 'REJECTED')}
-                              className="px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs font-extrabold flex items-center gap-1.5 transition-all active:scale-95"
-                            >
-                              <X className="w-4 h-4" />
-                              <span>Отклонить</span>
-                            </button>
-                          </>
-                        ) : null}
+                        <button
+                          onClick={() => handleUpdateAppStatus(app.id, 'ACCEPTED')}
+                          className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 ${
+                            app.status === 'ACCEPTED'
+                              ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/40'
+                              : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-600 hover:text-white'
+                          }`}
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>{app.status === 'ACCEPTED' ? 'Принято' : 'Принять отклик'}</span>
+                        </button>
+
+                        {/* Smooth Animated Reject Button */}
+                        <div
+                          className={`transition-all duration-500 ease-in-out transform origin-left ${
+                            app.status === 'ACCEPTED'
+                              ? 'opacity-0 max-w-0 scale-90 overflow-hidden pointer-events-none p-0 border-0 shadow-none -ml-2'
+                              : 'opacity-100 max-w-[140px] scale-100 ml-0'
+                          }`}
+                        >
+                          <button
+                            onClick={() => handleUpdateAppStatus(app.id, 'REJECTED')}
+                            className="px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-600 hover:text-white text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shadow-2xs active:scale-95"
+                          >
+                            <X className="w-4 h-4" />
+                            <span>Отклонить</span>
+                          </button>
+                        </div>
 
                         <div className="flex items-center gap-1.5 ml-1">
                           <span className="text-[11px] font-bold text-slate-400">Статус:</span>

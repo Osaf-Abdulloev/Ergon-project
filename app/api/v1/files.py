@@ -58,4 +58,6 @@ async def get_file(
     full_path = os.path.join(settings.FILE_STORAGE_PATH, folder, filename)
     if not os.path.exists(full_path):
         raise NotFoundException("File not found")
-    return FileResponse(full_path)
+    import mimetypes
+    media_type, _ = mimetypes.guess_type(full_path)
+    return FileResponse(full_path, media_type=media_type or "application/octet-stream")

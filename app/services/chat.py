@@ -104,13 +104,15 @@ class ChatService:
 
         chat_with_parts = await self.chat_repo.get_chat_with_participants(data.chat_id)
         if chat_with_parts:
+            from app.services.notification_service import NotificationService
             for p in chat_with_parts.participants:
                 if p.user_id != sender_id:
-                    notif = Notification(
+                    await NotificationService.send_notification(
+                        self.session,
                         user_id=p.user_id,
-                        type=NotificationType.NEW_MESSAGE,
-                        title="Новое сообщение",
+                        title="Новое сообщение в чате",
                         body=data.content[:100],
+                        type=NotificationType.NEW_MESSAGE,
                         payload={
                             "chat_id": str(data.chat_id),
                             "message_id": str(message.id),
@@ -118,7 +120,6 @@ class ChatService:
                             "content": data.content[:100]
                         }
                     )
-                    await self.notif_repo.create(notif)
 
         await self.session.commit()
         return message

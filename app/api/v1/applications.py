@@ -114,6 +114,7 @@ async def get_job_applications(
 
 @router.get("/applications/employer", response_model=PaginatedResponse[ApplicationOut])
 async def get_employer_applications_all(
+    job_id: Optional[uuid.UUID] = Query(default=None),
     status_filter: Optional[ApplicationStatus] = Query(default=None, alias="status"),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
@@ -122,7 +123,10 @@ async def get_employer_applications_all(
 ):
     service = ApplicationService(db)
     skip = (page - 1) * limit
-    items, total = await service.get_all_employer_applications(current_user.id, status_filter=status_filter, skip=skip, limit=limit)
+    if job_id:
+        items, total = await service.get_job_applications(current_user.id, job_id, status_filter=status_filter, skip=skip, limit=limit)
+    else:
+        items, total = await service.get_all_employer_applications(current_user.id, status_filter=status_filter, skip=skip, limit=limit)
     pages = (total + limit - 1) // limit if total > 0 else 1
     return PaginatedResponse(items=items, total=total, page=page, limit=limit, pages=pages)
 
@@ -138,7 +142,9 @@ async def update_application_status(
         current_user.id,
         application_id,
         data.status,
-        employer_feedback=data.employer_feedback
+        employer_feedback=data.employer_feedback,
+        rejection_reason=data.rejection_reason,
+        rating=data.rating
     )
 
     # Notify applicant about status update

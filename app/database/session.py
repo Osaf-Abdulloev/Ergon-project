@@ -48,9 +48,8 @@ def ensure_postgresql_database(url: str) -> bool:
 def get_effective_db_url() -> str:
     db_url = settings.DATABASE_URL
     if db_url.startswith("postgresql"):
-        if ensure_postgresql_database(db_url):
-            return db_url
-        return "sqlite+aiosqlite:///./ergon.db"
+        ensure_postgresql_database(db_url)
+        return db_url
     return db_url
 
 effective_url = get_effective_db_url()

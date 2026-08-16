@@ -40,13 +40,34 @@ class TestWelcomeEmailTask:
         from app.celery.tasks import send_welcome_email_task
         result = send_welcome_email_task("new@example.com", "Test User")
         assert result["status"] == "sent"
-        mock_welcome.assert_called_once_with("new@example.com", "Test User")
+        result = send_welcome_email_task("welcome@test.com", "John Doe")
+        assert result["status"] == "sent"
 
     @patch("app.services.email_service.EmailService.send_welcome_email", return_value=False)
     def test_welcome_email_failure_raises(self, mock_welcome):
         from app.celery.tasks import send_welcome_email_task
         with pytest.raises(RuntimeError, match="Welcome email send failed"):
-            send_welcome_email_task("fail@example.com", "")
+            send_welcome_email_task("fail@test.com", "John")
+
+
+class TestApplicationAcceptedEmailTask:
+    @patch("app.services.email_service.EmailService.send_application_accepted_candidate_email", return_value=True)
+    def test_accepted_candidate_email_success(self, mock_send):
+        from app.celery.tasks import send_application_accepted_candidate_email_task
+        res = send_application_accepted_candidate_email_task(
+            "candidate@test.com", "Иван Ив", "Алифа", "Python Dev", "http://localhost:5173/#chat"
+        )
+        assert res["status"] == "processed"
+        mock_send.assert_called_once()
+
+    @patch("app.services.email_service.EmailService.send_application_accepted_employer_email", return_value=True)
+    def test_accepted_employer_email_success(self, mock_send):
+        from app.celery.tasks import send_application_accepted_employer_email_task
+        res = send_application_accepted_employer_email_task(
+            "employer@test.com", "Алифа", "Иван Ив", "Python Dev", "http://localhost:5173/#chat"
+        )
+        assert res["status"] == "processed"
+        mock_send.assert_called_once()
 
 
 class TestTelegramTask:

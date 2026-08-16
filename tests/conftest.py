@@ -28,6 +28,20 @@ async def db_session(test_engine):
         yield session
         await session.rollback()
 
+def get_captured_code(email: str) -> str:
+    from app.services.email_service import EmailService
+    return EmailService._last_verification_codes.get(email, "")
+
+@pytest.fixture(autouse=True)
+def mock_smtp_sending(monkeypatch):
+    import app.services.email_service as es_module
+
+    def mock_smtp(msg, to_email: str) -> bool:
+        return True
+
+    monkeypatch.setattr(es_module.EmailService, "_send_smtp_message", mock_smtp)
+    yield
+
 @pytest.fixture(scope="function")
 async def client(db_session):
     async def _override_get_db():

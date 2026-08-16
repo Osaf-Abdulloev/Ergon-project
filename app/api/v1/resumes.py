@@ -211,6 +211,16 @@ async def fetch_ai_suggestions(
 
     return eval_data
 
+@router.post("/{resume_id}/set-default", response_model=ResumeOut)
+async def set_default_resume(
+    resume_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    _check_worker_permission(current_user)
+    service = ResumeService(db)
+    return await service.set_default_resume(current_user, resume_id)
+
 @router.delete("/{resume_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_resume(
     resume_id: uuid.UUID,

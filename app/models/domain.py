@@ -21,7 +21,7 @@ class User(Base, TimestampMixin):
     full_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
-    avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    avatar_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     city: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
     language: Mapped[str] = mapped_column(String(10), default="ru", nullable=False)
@@ -53,6 +53,9 @@ class User(Base, TimestampMixin):
     ai_cvs: Mapped[List["AIGeneratedCV"]] = relationship("AIGeneratedCV", back_populates="user", cascade="all, delete-orphan")
     resumes: Mapped[List["Resume"]] = relationship("Resume", back_populates="user", cascade="all, delete-orphan")
     user_settings: Mapped[Optional["UserSettings"]] = relationship("UserSettings", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    cv_documents: Mapped[List["CVDocument"]] = relationship("CVDocument", back_populates="user", cascade="all, delete-orphan")
+    profile_ai_suggestions: Mapped[List["ProfileAISuggestion"]] = relationship("ProfileAISuggestion", back_populates="user", cascade="all, delete-orphan")
+    profile_change_history: Mapped[List["ProfileChangeHistory"]] = relationship("ProfileChangeHistory", foreign_keys="[ProfileChangeHistory.user_id]", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def company_name(self) -> Optional[str]:
@@ -152,13 +155,18 @@ class Company(Base, TimestampMixin):
     company_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     inn: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    logo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    logo_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     website: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     industry: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     address: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     contact_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     contact_phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     employee_count: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    target_position: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    required_skills: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    min_experience_years: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    offered_salary_min: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    offered_salary_max: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     employer: Mapped["User"] = relationship("User", back_populates="company")
@@ -197,26 +205,55 @@ class Job(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint('external_source', 'external_id', name='uq_job_external_source_id'),
+        Index('idx_job_company_status', 'company_id', 'status'),
+        Index('idx_job_status_created', 'status', 'created_at'),
     )
 
 class Application(Base, TimestampMixin):
     __tablename__ = "applications"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
-    worker_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    job_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    worker_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     cover_letter: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     cover_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     resume_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    resume_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True)
     employer_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    status: Mapped[ApplicationStatus] = mapped_column(Enum(ApplicationStatus), default=ApplicationStatus.PENDING, nullable=False)
+    rejection_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_read_by_employer: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[ApplicationStatus] = mapped_column(Enum(ApplicationStatus), default=ApplicationStatus.PENDING, nullable=False, index=True)
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     job: Mapped["Job"] = relationship("Job", back_populates="applications")
     worker: Mapped["User"] = relationship("User", back_populates="applications")
+    resume: Mapped[Optional["Resume"]] = relationship("Resume")
+    status_history: Mapped[List["ApplicationStatusHistory"]] = relationship("ApplicationStatusHistory", back_populates="application", cascade="all, delete-orphan", lazy="selectin")
 
     __table_args__ = (
         UniqueConstraint('job_id', 'worker_id', name='uq_job_worker_application'),
+        Index('idx_application_worker_status', 'worker_id', 'status', 'created_at'),
+        Index('idx_application_job_status', 'job_id', 'status', 'created_at'),
     )
+
+class ApplicationStatusHistory(Base):
+    __tablename__ = "application_status_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("applications.id", ondelete="CASCADE"), nullable=False, index=True)
+    previous_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(50), nullable=False)
+    changed_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    application: Mapped["Application"] = relationship("Application", back_populates="status_history")
+    changed_by_user: Mapped[Optional["User"]] = relationship("User")
 
 class SavedJob(Base, TimestampMixin):
     __tablename__ = "saved_jobs"
@@ -302,6 +339,10 @@ class Notification(Base, TimestampMixin):
     payload: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="notifications")
+
+    __table_args__ = (
+        Index('idx_notification_user_unread', 'user_id', 'is_read', 'created_at'),
+    )
 
 class FileUpload(Base, TimestampMixin):
     __tablename__ = "file_uploads"
@@ -400,6 +441,7 @@ class Resume(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     source_file_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("file_uploads.id", ondelete="SET NULL"), nullable=True)
+    source_cv_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("cv_documents.id", ondelete="SET NULL"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), default="Моё резюме", nullable=False)
     target_position: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     status: Mapped[ResumeStatus] = mapped_column(Enum(ResumeStatus), default=ResumeStatus.DRAFT, nullable=False, index=True)
@@ -413,7 +455,63 @@ class Resume(Base, TimestampMixin):
 
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    pinned_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="resumes")
     source_file: Mapped[Optional["FileUpload"]] = relationship("FileUpload")
+    source_cv: Mapped[Optional["CVDocument"]] = relationship("CVDocument")
+
+
+class CVDocument(Base, TimestampMixin):
+    __tablename__ = "cv_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_upload_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("file_uploads.id", ondelete="SET NULL"), nullable=True)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_type: Mapped[str] = mapped_column(String(50), default="pdf", nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), default="application/pdf", nullable=False)
+    file_size: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String(512), nullable=False)
+    processing_status: Mapped[str] = mapped_column(String(50), default="UPLOADED", nullable=False, index=True)
+    extraction_method: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extracted_data: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    processing_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    processed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship("User", back_populates="cv_documents")
+    file_upload: Mapped[Optional["FileUpload"]] = relationship("FileUpload")
+    suggestions: Mapped[List["ProfileAISuggestion"]] = relationship("ProfileAISuggestion", back_populates="cv_document", cascade="all, delete-orphan")
+
+
+class ProfileAISuggestion(Base, TimestampMixin):
+    __tablename__ = "profile_ai_suggestions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    cv_document_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cv_documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(50), default="PENDING", nullable=False, index=True)
+    suggested_changes: Mapped[dict] = mapped_column(JSONType, nullable=False)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped["User"] = relationship("User", back_populates="profile_ai_suggestions")
+    cv_document: Mapped["CVDocument"] = relationship("CVDocument", back_populates="suggestions")
+
+
+class ProfileChangeHistory(Base, TimestampMixin):
+    __tablename__ = "profile_change_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    previous_value: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    new_value: Mapped[Optional[dict]] = mapped_column(JSONType, nullable=True)
+    source: Mapped[str] = mapped_column(String(50), default="CV_AI", nullable=False)
+    confirmed_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id], back_populates="profile_change_history")
+    confirmed_by_user: Mapped[Optional["User"]] = relationship("User", foreign_keys=[confirmed_by])
+
 

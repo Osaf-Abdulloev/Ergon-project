@@ -52,8 +52,25 @@ class JobRepository(BaseRepository[Job]):
         if salary_max is not None:
             query = query.where(Job.salary_min <= salary_max)
 
-        count_query = select(func.count()).select_from(query.subquery())
-        total = (await self.session.execute(count_query)).scalar_one()
+        count_stmt = select(func.count(Job.id))
+        if status:
+            count_stmt = count_stmt.where(Job.status == status)
+        if company_id:
+            count_stmt = count_stmt.where(Job.company_id == company_id)
+        if title:
+            count_stmt = count_stmt.where(Job.title.ilike(f"%{title}%"))
+        if category:
+            count_stmt = count_stmt.where(Job.category.ilike(f"%{category}%"))
+        if location:
+            count_stmt = count_stmt.where(Job.location.ilike(f"%{location}%"))
+        if employment_type:
+            count_stmt = count_stmt.where(Job.employment_type == employment_type)
+        if salary_min is not None:
+            count_stmt = count_stmt.where(Job.salary_max >= salary_min)
+        if salary_max is not None:
+            count_stmt = count_stmt.where(Job.salary_min <= salary_max)
+
+        total = (await self.session.execute(count_stmt)).scalar_one()
 
         result = await self.session.execute(query.order_by(Job.created_at.desc()).offset(skip).limit(limit))
         return list(result.scalars().all()), total

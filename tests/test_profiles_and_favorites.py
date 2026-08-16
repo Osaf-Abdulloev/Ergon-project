@@ -4,7 +4,9 @@ import pytest
 async def test_worker_and_company_profile_flow(client):
     w_reg = {"email": "worker_prof@example.com", "username": "worker_prof", "password": "password123"}
     await client.post("/api/v1/auth/register/worker", json=w_reg)
-    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "worker_prof@example.com", "code": "123456"})
+    from tests.conftest import get_captured_code
+    w_code = get_captured_code("worker_prof@example.com")
+    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "worker_prof@example.com", "code": w_code})
     w_token = w_verify.json()["access_token"]
     w_headers = {"Authorization": f"Bearer {w_token}"}
 
@@ -52,7 +54,8 @@ async def test_worker_and_company_profile_flow(client):
         "industry": "Fintech"
     }
     await client.post("/api/v1/auth/register/employer", json=e_reg)
-    e_verify = await client.post("/api/v1/auth/verify-email", json={"email": "emp_prof@example.com", "code": "123456"})
+    e_code = get_captured_code("emp_prof@example.com")
+    e_verify = await client.post("/api/v1/auth/verify-email", json={"email": "emp_prof@example.com", "code": e_code})
     e_token = e_verify.json()["access_token"]
     e_headers = {"Authorization": f"Bearer {e_token}"}
 
@@ -62,18 +65,29 @@ async def test_worker_and_company_profile_flow(client):
             "company_name": "Alpha Corp",
             "description": "Leading Fintech innovator",
             "website": "https://alpha.example.com",
-            "industry": "Fintech"
+            "industry": "Fintech",
+            "target_position": "Senior Accountant",
+            "required_skills": ["1C", "Taxation"],
+            "offered_salary_min": 7000.0,
+            "offered_salary_max": 14000.0,
+            "min_experience_years": "3-5 years"
         },
         headers=e_headers
     )
     assert comp_res.status_code == 200
-    assert comp_res.json()["company_name"] == "Alpha Corp"
+    c_data = comp_res.json()
+    assert c_data["company_name"] == "Alpha Corp"
+    assert c_data["target_position"] == "Senior Accountant"
+    assert c_data["offered_salary_min"] == 7000.0
+    assert c_data["required_skills"] == ["1C", "Taxation"]
 
 @pytest.mark.asyncio
 async def test_favorites_and_notifications(client):
+    from tests.conftest import get_captured_code
     w_reg = {"email": "fav_user@example.com", "username": "fav_user", "password": "password123"}
     await client.post("/api/v1/auth/register/worker", json=w_reg)
-    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "fav_user@example.com", "code": "123456"})
+    fav_w_code = get_captured_code("fav_user@example.com")
+    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "fav_user@example.com", "code": fav_w_code})
     w_token = w_verify.json()["access_token"]
     w_headers = {"Authorization": f"Bearer {w_token}"}
 
@@ -85,7 +99,8 @@ async def test_favorites_and_notifications(client):
         "industry": "IT"
     }
     await client.post("/api/v1/auth/register/employer", json=e_reg)
-    e_verify = await client.post("/api/v1/auth/verify-email", json={"email": "fav_emp@example.com", "code": "123456"})
+    fav_e_code = get_captured_code("fav_emp@example.com")
+    e_verify = await client.post("/api/v1/auth/verify-email", json={"email": "fav_emp@example.com", "code": fav_e_code})
     e_token = e_verify.json()["access_token"]
     e_headers = {"Authorization": f"Bearer {e_token}"}
 

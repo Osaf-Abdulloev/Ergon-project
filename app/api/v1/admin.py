@@ -36,54 +36,56 @@ async def get_admin_dashboard_stats(
 ):
     now = datetime.now(timezone.utc)
 
-    # Users count breakdowns
-    total_users = (await db.execute(select(func.count()).select_from(User))).scalar_one()
-    candidates_count = (await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.WORKER))).scalar_one()
-    employers_count = (await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.EMPLOYER))).scalar_one()
-    admins_count = (await db.execute(select(func.count()).select_from(User).where(User.role == UserRole.ADMIN))).scalar_one()
-    
-    # Muted users
-    muted_users_count = (await db.execute(
-        select(func.count()).select_from(User).where(
-            or_(
-                User.is_muted == True,
-                User.muted_until > now
-            )
+    user_stats = (await db.execute(
+        select(
+            func.count(User.id).label("total"),
+            func.count(User.id).filter(User.role == UserRole.WORKER).label("workers"),
+            func.count(User.id).filter(User.role == UserRole.EMPLOYER).label("employers"),
+            func.count(User.id).filter(User.role == UserRole.ADMIN).label("admins"),
+            func.count(User.id).filter(or_(User.is_muted == True, User.muted_until > now)).label("muted")
         )
-    )).scalar_one()
+    )).one()
 
-    # Jobs breakdown
-    total_jobs = (await db.execute(select(func.count()).select_from(Job))).scalar_one()
-    active_jobs = (await db.execute(select(func.count()).select_from(Job).where(Job.status == JobStatus.OPEN))).scalar_one()
-    closed_jobs = (await db.execute(select(func.count()).select_from(Job).where(Job.status == JobStatus.CLOSED))).scalar_one()
-    external_jobs = (await db.execute(select(func.count()).select_from(Job).where(Job.is_external == True))).scalar_one()
+    job_stats = (await db.execute(
+        select(
+            func.count(Job.id).label("total"),
+            func.count(Job.id).filter(Job.status == JobStatus.OPEN).label("active"),
+            func.count(Job.id).filter(Job.status == JobStatus.CLOSED).label("closed"),
+            func.count(Job.id).filter(Job.is_external == True).label("external"),
+            func.count(Job.id).filter(or_(Job.external_source == "telegram_kortj1", Job.external_source.ilike("%telegram%"))).label("telegram"),
+            func.count(Job.id).filter(or_(Job.external_source == "yora_tj", Job.external_source == "yora.tj", Job.external_source.ilike("%yora%"))).label("yora")
+        )
+    )).one()
+
+    app_stats = (await db.execute(
+        select(
+            func.count(Application.id).label("total"),
+            func.count(Application.id).filter(Application.status == ApplicationStatus.PENDING).label("pending"),
+            func.count(Application.id).filter(Application.status == ApplicationStatus.REVIEWED).label("reviewed"),
+            func.count(Application.id).filter(Application.status == ApplicationStatus.ACCEPTED).label("accepted"),
+            func.count(Application.id).filter(Application.status == ApplicationStatus.REJECTED).label("rejected")
+        )
+    )).one()
+
+    total_users = user_stats.total
+    candidates_count = user_stats.workers
+    employers_count = user_stats.employers
+    admins_count = user_stats.admins
+    muted_users_count = user_stats.muted
+
+    total_jobs = job_stats.total
+    active_jobs = job_stats.active
+    closed_jobs = job_stats.closed
+    external_jobs = job_stats.external
     direct_jobs = total_jobs - external_jobs
-    
-    telegram_jobs = (await db.execute(
-        select(func.count()).select_from(Job).where(
-            or_(
-                Job.external_source == "telegram_kortj1",
-                Job.external_source.ilike("%telegram%")
-            )
-        )
-    )).scalar_one()
-    
-    yora_jobs = (await db.execute(
-        select(func.count()).select_from(Job).where(
-            or_(
-                Job.external_source == "yora_tj",
-                Job.external_source == "yora.tj",
-                Job.external_source.ilike("%yora%")
-            )
-        )
-    )).scalar_one()
+    telegram_jobs = job_stats.telegram
+    yora_jobs = job_stats.yora
 
-    # Applications breakdown
-    total_applications = (await db.execute(select(func.count()).select_from(Application))).scalar_one()
-    pending_apps = (await db.execute(select(func.count()).select_from(Application).where(Application.status == ApplicationStatus.PENDING))).scalar_one()
-    reviewed_apps = (await db.execute(select(func.count()).select_from(Application).where(Application.status == ApplicationStatus.REVIEWED))).scalar_one()
-    accepted_apps = (await db.execute(select(func.count()).select_from(Application).where(Application.status == ApplicationStatus.ACCEPTED))).scalar_one()
-    rejected_apps = (await db.execute(select(func.count()).select_from(Application).where(Application.status == ApplicationStatus.REJECTED))).scalar_one()
+    total_applications = app_stats.total
+    pending_apps = app_stats.pending
+    reviewed_apps = app_stats.reviewed
+    accepted_apps = app_stats.accepted
+    rejected_apps = app_stats.rejected
 
     # Recent Signups
     recent_users_res = await db.execute(select(User).order_by(desc(User.created_at)).limit(10))
@@ -307,3 +309,31 @@ async def verify_company(
     await repo.update(company)
     await db.commit()
     return company
+
+@router.delete("/users/{user_id}", response_model=MessageResponse)
+async def delete_user_permanently(
+    user_id: uuid.UUID,
+    admin: User = Depends(require_roles([UserRole.ADMIN])),
+    db: AsyncSession = Depends(get_db)
+):
+    if user_id == admin.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Администратор не может удалить собственный аккаунт"
+        )
+
+    stmt = select(User).where(User.id == user_id)
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+    if not user:
+        raise NotFoundException("User not found")
+
+    username = user.username or user.email
+    await db.delete(user)
+    await db.commit()
+
+    return MessageResponse(
+        message=f"Пользователь {username} полностью удален из базы данных (Hard Delete)",
+        status="ok"
+    )
+

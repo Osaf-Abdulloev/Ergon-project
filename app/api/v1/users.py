@@ -194,6 +194,14 @@ async def search_workers(
     pages = (total + limit - 1) // limit if total > 0 else 1
     return PaginatedResponse(items=items, total=total, page=page, limit=limit, pages=pages)
 
+@router.get("/workers/{user_id}", response_model=WorkerProfileOut)
+async def get_worker_profile_by_id(
+    user_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    service = UserService(db)
+    return await service.get_worker_profile(user_id)
+
 @router.post("/candidates/sync-yora")
 async def sync_yora_candidates(
     db: AsyncSession = Depends(get_db)

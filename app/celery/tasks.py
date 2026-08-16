@@ -134,6 +134,94 @@ def send_application_status_email_task(self, to_email: str, job_title: str, stat
     return {"status": "processed", "to": to_email}
 
 
+@celery_app.task(
+    bind=True,
+    name="app.celery.tasks.send_application_accepted_candidate_email_task",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=180,
+    retry_jitter=True,
+    soft_time_limit=30,
+    time_limit=60,
+)
+def send_application_accepted_candidate_email_task(
+    self, to_email: str, candidate_name: str, employer_name: str, job_title: str, chat_url: str
+):
+    """Send notification email to candidate when their application is accepted."""
+    logger.info(
+        "send_application_accepted_candidate_email_task started | task_id=%s to=%s employer=%s",
+        self.request.id, to_email, employer_name,
+    )
+    from app.services.email_service import EmailService
+
+    success = EmailService.send_application_accepted_candidate_email(
+        to_email, candidate_name, employer_name, job_title, chat_url
+    )
+    if not success:
+        logger.warning(f"Application accepted candidate email failed for {to_email}")
+
+    return {"status": "processed", "to": to_email}
+
+
+@celery_app.task(
+    bind=True,
+    name="app.celery.tasks.send_application_accepted_employer_email_task",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=180,
+    retry_jitter=True,
+    soft_time_limit=30,
+    time_limit=60,
+)
+def send_application_accepted_employer_email_task(
+    self, to_email: str, employer_name: str, candidate_name: str, job_title: str, chat_url: str
+):
+    """Send confirmation email to employer when they accept an application."""
+    logger.info(
+        "send_application_accepted_employer_email_task started | task_id=%s to=%s candidate=%s",
+        self.request.id, to_email, candidate_name,
+    )
+    from app.services.email_service import EmailService
+
+    success = EmailService.send_application_accepted_employer_email(
+        to_email, employer_name, candidate_name, job_title, chat_url
+    )
+    if not success:
+        logger.warning(f"Application accepted employer email failed for {to_email}")
+
+    return {"status": "processed", "to": to_email}
+
+
+
+@celery_app.task(
+    bind=True,
+    name="app.celery.tasks.send_password_reset_email_task",
+    max_retries=3,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=180,
+    retry_jitter=True,
+    soft_time_limit=30,
+    time_limit=60,
+)
+def send_password_reset_email_task(self, to_email: str, reset_token: str):
+    """Send password reset token notification email."""
+    logger.info(
+        "send_password_reset_email_task started | task_id=%s to=%s retry=%s",
+        self.request.id, to_email, self.request.retries,
+    )
+    from app.services.email_service import EmailService
+
+    success = EmailService.send_password_reset_email(to_email, reset_token)
+    if not success:
+        logger.warning(f"Password reset email send failed for {to_email}")
+
+    logger.info("send_password_reset_email_task completed | task_id=%s to=%s", self.request.id, to_email)
+    return {"status": "processed", "to": to_email}
+
+
 # ---------------------------------------------------------------------------
 # TELEGRAM TASK
 # ---------------------------------------------------------------------------
@@ -403,4 +491,36 @@ def sync_somon_vacancies_task(self, max_pages: int = 10):
         self.request.id, stats,
     )
     return {"status": "success", "stats": stats}
+
+
+# ---------------------------------------------------------------------------
+# CV DOCUMENT PROCESSING TASK
+# ---------------------------------------------------------------------------
+@celery_app.task(
+    bind=True,
+    name="app.celery.tasks.process_cv_document_task",
+    max_retries=2,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    soft_time_limit=180,
+    time_limit=300,
+)
+def process_cv_document_task(self, cv_document_id: str):
+    """Asynchronously process uploaded CV document: text extraction, AI analysis, Pydantic validation, suggestions generation."""
+    logger.info("process_cv_document_task started | task_id=%s cv_id=%s retry=%s", self.request.id, cv_document_id, self.request.retries)
+
+    async def _run():
+        import uuid as _uuid
+        from app.database.session import AsyncSessionLocal
+        from app.services.cv_processing_service import CVProcessingService
+
+        async with AsyncSessionLocal() as session:
+            service = CVProcessingService(session)
+            return await service.process_cv_document(_uuid.UUID(cv_document_id))
+
+    cv_doc = _run_async(_run())
+    logger.info("process_cv_document_task completed | task_id=%s cv_id=%s status=%s", self.request.id, cv_document_id, cv_doc.processing_status)
+    return {"status": "success", "cv_document_id": cv_document_id, "processing_status": cv_doc.processing_status}
+
 

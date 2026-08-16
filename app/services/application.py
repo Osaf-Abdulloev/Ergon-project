@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Optional, List, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
@@ -25,6 +26,10 @@ def _attach_ui_flags(app: Application) -> Application:
         setattr(app, 'can_accept', False)
         setattr(app, 'can_reject', False)
         setattr(app, 'can_contact', False)
+    
+    if hasattr(app, 'job') and app.job and hasattr(app.job, 'company') and app.job.company and hasattr(app.job.company, 'employer_id'):
+        setattr(app, 'employer_id', app.job.company.employer_id)
+        setattr(app, 'company_user_id', app.job.company.employer_id)
     return app
 
 class ApplicationService:
@@ -51,17 +56,20 @@ class ApplicationService:
                 cover_note=data.cover_note or data.cover_letter,
                 cover_letter=data.cover_letter or data.cover_note,
                 resume_url=data.resume_url,
+                resume_id=data.resume_id,
                 status=ApplicationStatus.PENDING
             )
             application = await self.app_repo.create(application)
 
             company = await self.company_repo.get_by_id(job.company_id) if job.company_id else None
             if company:
-                notif = Notification(
+                from app.services.notification_service import NotificationService
+                await NotificationService.send_notification(
+                    self.session,
                     user_id=company.employer_id,
+                    title="Новый отклик на вакансию",
+                    body=f"Поступил новый отклик на вакансию «{job.title}».",
                     type=NotificationType.NEW_APPLICATION,
-                    title="Новая заявка",
-                    body=f"Поступила новая заявка на вакансию {job.title}",
                     payload={
                         "application_id": str(application.id),
                         "job_id": str(job.id),
@@ -69,7 +77,6 @@ class ApplicationService:
                         "worker_id": str(worker_id)
                     }
                 )
-                await self.notif_repo.create(notif)
 
             await self.session.commit()
             created_app = await self.app_repo.get_with_details(application.id)
@@ -88,7 +95,21 @@ class ApplicationService:
         if application.status != ApplicationStatus.PENDING:
             raise ConflictException("Отменить можно только отклики в статусе 'В рассмотрении'")
 
+        prev_st = application.status
+        now_dt = datetime.now(timezone.utc)
         application.status = ApplicationStatus.CANCELLED
+        application.cancelled_at = now_dt
+
+        from app.models.domain import ApplicationStatusHistory
+        history_entry = ApplicationStatusHistory(
+            application_id=application.id,
+            previous_status=prev_st.value if hasattr(prev_st, 'value') else str(prev_st),
+            new_status=ApplicationStatus.CANCELLED.value,
+            changed_by_user_id=worker_id,
+            feedback="Отменено соискателем"
+        )
+        self.session.add(history_entry)
+
         await self.app_repo.update(application)
         await self.session.commit()
         return _attach_ui_flags(application)
@@ -113,7 +134,9 @@ class ApplicationService:
         employer_id: uuid.UUID,
         application_id: uuid.UUID,
         new_status: ApplicationStatus,
-        employer_feedback: Optional[str] = None
+        employer_feedback: Optional[str] = None,
+        rejection_reason: Optional[str] = None,
+        rating: Optional[int] = None
     ) -> Application:
         application = await self.app_repo.get_with_details(application_id)
         if not application:
@@ -134,9 +157,32 @@ class ApplicationService:
         if curr == ApplicationStatus.CANCELLED:
             raise ConflictException("Отклик был отменён соискателем.")
 
+        now_dt = datetime.now(timezone.utc)
         application.status = new_status
+        if new_status == ApplicationStatus.ACCEPTED:
+            application.accepted_at = now_dt
+        elif new_status == ApplicationStatus.REJECTED:
+            application.rejected_at = now_dt
+        elif new_status == ApplicationStatus.REVIEWED:
+            application.reviewed_at = now_dt
+
         if employer_feedback:
             application.employer_feedback = employer_feedback
+        if rejection_reason:
+            application.rejection_reason = rejection_reason
+        if rating is not None:
+            application.rating = rating
+
+        # Add Audit History Record
+        from app.models.domain import ApplicationStatusHistory
+        history_entry = ApplicationStatusHistory(
+            application_id=application.id,
+            previous_status=curr.value if hasattr(curr, 'value') else str(curr),
+            new_status=new_status.value if hasattr(new_status, 'value') else str(new_status),
+            changed_by_user_id=employer_id,
+            feedback=employer_feedback or rejection_reason
+        )
+        self.session.add(history_entry)
 
         await self.app_repo.update(application)
 
@@ -168,20 +214,70 @@ class ApplicationService:
         await self.notif_repo.create(notif)
         await self.session.commit()
 
-        # 4. Enqueue Email Task via Celery
+        # 4. Broadcast Real-time WebSocket Event
         try:
-            if application.worker and application.worker.email:
-                from app.celery.tasks import send_application_status_email_task
-                send_application_status_email_task.delay(
-                    application.worker.email,
-                    application.job.title if application.job else "вакансию",
-                    st_name,
-                    employer_feedback or ""
+            from app.websocket.manager import ws_manager
+            await ws_manager.broadcast_to_participants(
+                [application.worker_id, employer_id],
+                {
+                    "event": "application_status_changed",
+                    "application_id": str(application.id),
+                    "job_id": str(application.job_id),
+                    "worker_id": str(application.worker_id),
+                    "status": new_status.value if hasattr(new_status, "value") else str(new_status),
+                    "employer_feedback": employer_feedback or ""
+                }
+            )
+        except Exception as e:
+            pass
+
+        # 5. Enqueue Email Task via Celery
+        try:
+            from app.core.config import settings
+            cand_user = application.worker
+            emp_user = await self.session.get(User, employer_id)
+            job_title = application.job.title if application.job else "вакансию"
+            emp_name = company.name if (company and company.name) else (emp_user.full_name or emp_user.username if emp_user else "Работодатель")
+            cand_name = cand_user.full_name or cand_user.username if cand_user else "Соискатель"
+
+            if new_status == ApplicationStatus.ACCEPTED:
+                from app.celery.tasks import (
+                    send_application_accepted_candidate_email_task,
+                    send_application_accepted_employer_email_task
                 )
+                cand_chat_url = f"{settings.FRONTEND_URL}/#chat"
+                emp_chat_url = f"{settings.FRONTEND_URL}/#chat?recipient_id={application.worker_id}"
+
+                if cand_user and cand_user.email:
+                    send_application_accepted_candidate_email_task.delay(
+                        cand_user.email,
+                        cand_name,
+                        emp_name,
+                        job_title,
+                        cand_chat_url
+                    )
+                if emp_user and emp_user.email:
+                    send_application_accepted_employer_email_task.delay(
+                        emp_user.email,
+                        emp_name,
+                        cand_name,
+                        job_title,
+                        emp_chat_url
+                    )
+            else:
+                if cand_user and cand_user.email:
+                    from app.celery.tasks import send_application_status_email_task
+                    send_application_status_email_task.delay(
+                        cand_user.email,
+                        job_title,
+                        st_name,
+                        employer_feedback or ""
+                    )
         except Exception:
             pass
 
-        return _attach_ui_flags(application)
+        refreshed = await self.app_repo.get_with_details(application.id)
+        return _attach_ui_flags(refreshed or application)
 
     async def contact_candidate(self, employer_id: uuid.UUID, application_id: uuid.UUID):
         application = await self.app_repo.get_with_details(application_id)

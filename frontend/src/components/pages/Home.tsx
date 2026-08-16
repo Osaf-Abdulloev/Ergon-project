@@ -34,7 +34,6 @@ export const Home: React.FC<HomeProps> = ({
 }) => {
   const { t } = useLanguage();
   const [positionQuery, setPositionQuery] = useState('');
-  const [scrollY, setScrollY] = useState(0);
   const [winW, setWinW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1440);
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -47,12 +46,9 @@ export const Home: React.FC<HomeProps> = ({
   } | null>(null);
 
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
     const handleResize = () => setWinW(window.innerWidth);
-    window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize, { passive: true });
     return () => {
-      window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
     };
   }, []);

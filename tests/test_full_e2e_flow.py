@@ -17,7 +17,9 @@ async def test_full_e2e_flow(client: AsyncClient):
     })
     assert reg_cand_res.status_code in (200, 201)
     
-    ver_cand_res = await ac.post("/api/v1/auth/verify-email", json={"email": candidate_email, "code": "123456"})
+    from tests.conftest import get_captured_code
+    cand_code = get_captured_code(candidate_email)
+    ver_cand_res = await ac.post("/api/v1/auth/verify-email", json={"email": candidate_email, "code": cand_code})
     assert ver_cand_res.status_code == 200
     cand_token = ver_cand_res.json()["access_token"]
     cand_headers = {"Authorization": f"Bearer {cand_token}"}
@@ -38,7 +40,8 @@ async def test_full_e2e_flow(client: AsyncClient):
         "company_name": "Тестовая Компания ООО"
     })
     
-    ver_emp_res = await ac.post("/api/v1/auth/verify-email", json={"email": emp_email, "code": "123456"})
+    emp_code = get_captured_code(emp_email)
+    ver_emp_res = await ac.post("/api/v1/auth/verify-email", json={"email": emp_email, "code": emp_code})
     assert ver_emp_res.status_code == 200
     emp_token = ver_emp_res.json()["access_token"]
     emp_headers = {"Authorization": f"Bearer {emp_token}"}

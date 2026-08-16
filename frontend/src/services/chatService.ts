@@ -138,7 +138,7 @@ export const chatService = {
       formData.append('folder', folder);
 
       const response = await api.post('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': undefined }
       });
 
       return response.data.url || response.data.file_url || null;
@@ -163,8 +163,8 @@ export const chatService = {
     const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
     
     let wsHost = loc.host;
-    if (!wsHost || wsHost.includes('3000') || wsHost.includes('5173')) {
-      wsHost = '127.0.0.1:8000';
+    if (loc.port === '5173' || loc.port === '3000') {
+      wsHost = `${loc.hostname}:8000`;
     }
 
     const authToken = token || getStoredToken();

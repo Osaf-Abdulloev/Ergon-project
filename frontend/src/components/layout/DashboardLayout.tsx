@@ -81,7 +81,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   const allNavItems = [
     { id: 'profile', label: user?.role === 'employer' ? t('nav.company_profile') : t('nav.my_profile'), icon: user?.role === 'employer' ? Building2 : UserIcon, protected: true },
-    ...(user?.role === 'employer' ? [{ id: 'employer', label: t('nav.publish_jobs'), icon: Briefcase, protected: true }] : []),
+    ...(user?.role === 'employer' ? [{ id: 'my_jobs', label: 'Мои вакансии', icon: Briefcase, protected: true }] : []),
     ...(user?.role !== 'employer' ? [{ id: 'resumes', label: t('nav.ai_resumes'), icon: Sparkles, protected: true }] : []),
     { id: 'jobs', label: user?.role === 'employer' ? t('nav.all_candidates') : t('nav.all_jobs'), icon: user?.role === 'employer' ? UserCheck : Search, protected: false },
     { id: 'favorites', label: 'Избранное', icon: Heart, protected: false },

@@ -5,7 +5,7 @@ from app.models.enums import (
 )
 from app.models.domain import (
     User, UserSettings, Skill, WorkerProfile, WorkerSkill, Experience,
-    Certificate, Company, Job, Application, SavedJob, Favorite, Chat, ChatParticipant,
+    Certificate, Company, Job, Application, ApplicationStatusHistory, SavedJob, Favorite, Chat, ChatParticipant,
     Message, Notification, FileUpload, AIChatSession, AIMessage, AIGeneratedCV,
     AuditLog, EmailVerificationToken, PasswordResetToken, RefreshToken
 )
@@ -30,6 +30,7 @@ __all__ = [
     "Company",
     "Job",
     "Application",
+    "ApplicationStatusHistory",
     "SavedJob",
     "Favorite",
     "Chat",

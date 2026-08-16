@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200  # 30 days (43200 minutes)
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 90     # 90 days
+    FRONTEND_URL: str = "http://171.22.174.199:2212"
     
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = ""
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     
     EMAIL_HOST: str = "smtp.gmail.com"
     EMAIL_PORT: int = 587
+    EMAIL_USERNAME: str = ""
     EMAIL_USER: str = ""
     EMAIL_PASSWORD: str = ""
     EMAIL_FROM: str = ""
@@ -42,7 +44,7 @@ class Settings(BaseSettings):
 
     @property
     def get_smtp_user(self) -> str:
-        return self.SMTP_USER or self.MAIL_USERNAME or self.EMAIL_USER or ""
+        return self.SMTP_USER or self.EMAIL_USERNAME or self.MAIL_USERNAME or self.EMAIL_USER or ""
 
     @property
     def get_smtp_password(self) -> str:

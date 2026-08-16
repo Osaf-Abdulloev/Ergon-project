@@ -12,6 +12,8 @@ import { Job } from '../../types';
 import { DEFAULT_USER_AVATAR, evaluateProfileJobMatch, getSavedUserProfile, saveUserProfile } from '../../services/matchService';
 import { EmployerProfilePage } from './EmployerProfilePage';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { CVUploadModal } from '../cv/CVUploadModal';
+import { ProfileSuggestionsReviewModal } from '../cv/ProfileSuggestionsReviewModal';
 
 export const DEFAULT_INSTAGRAM_AVATAR = DEFAULT_USER_AVATAR;
 
@@ -218,6 +220,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
   const [tgStatusMsg, setTgStatusMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [isConnectingTg, setIsConnectingTg] = useState<boolean>(false);
 
+  const [isUploadCvModalOpen, setIsUploadCvModalOpen] = useState(false);
+  const [activeReviewCvId, setActiveReviewCvId] = useState<string | null>(null);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
   const handleConnectTelegram = async (customId?: string) => {
     setIsConnectingTg(true);
     setTgStatusMsg(null);
@@ -317,10 +323,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
           if (wp) {
             setProfile((prev) => ({
               ...prev,
-              position: wp.desired_position || prev.position,
+              full_name: user.full_name || user.username || prev.full_name || '',
+              email: user.email || prev.email || '',
+              phone: user.phone || prev.phone || '',
+              location: user.city || prev.location || 'г. Душанбе',
+              avatar_url: user.avatar_url || prev.avatar_url || '',
+              position: wp.desired_position ?? prev.position,
               expected_salary: wp.desired_salary ? `${wp.desired_salary} TJS` : prev.expected_salary,
-              bio: wp.bio || prev.bio,
-              education: wp.education || prev.education,
+              bio: wp.bio ?? prev.bio,
+              education: wp.education ?? prev.education,
               relocation: wp.relocation_preference || prev.relocation,
               commute_time: wp.commute_preference || prev.commute_time,
               work_format: wp.work_format || prev.work_format,
@@ -332,8 +343,24 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
               portfolio_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.portfolio) || prev.portfolio_url,
               linkedin_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.linkedin) || prev.linkedin_url,
               telegram_url: (wp.portfolio_links && typeof wp.portfolio_links === 'object' && wp.portfolio_links.telegram) || prev.telegram_url,
-              experiences: wp.experiences && wp.experiences.length > 0 ? wp.experiences : prev.experiences,
-              certificates: wp.certificates && wp.certificates.length > 0 ? wp.certificates : prev.certificates
+              experiences: wp.experiences && wp.experiences.length > 0 
+                ? wp.experiences.map((e: any) => ({
+                    id: e.id,
+                    company: e.company_name,
+                    position: e.role_title,
+                    period: `${e.start_date}${e.end_date ? ' — ' + e.end_date : ''}`,
+                    description: e.description || ''
+                  }))
+                : prev.experiences,
+              certificates: wp.certificates && wp.certificates.length > 0 
+                ? wp.certificates.map((c: any) => ({
+                    id: c.id,
+                    title: c.title,
+                    issuer: c.issuer,
+                    year: c.year || '',
+                    link: c.credential_url || ''
+                  }))
+                : prev.certificates
             }));
           }
         } catch (e) {
@@ -359,11 +386,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
 
     loadBackendProfile();
   }, [user?.id, user?.username, user?.email]);
-
-  // Persist profile strictly across multi-key storage (user.id, username, email, backup)
-  useEffect(() => {
-    saveUserProfile(profile, user);
-  }, [profile, user]);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -402,7 +424,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
 
     if (user?.id) {
       try {
-        // Sync basic User details to SQLite Database
+        // Sync basic User details to Database
         await profileService.updateUser({
           full_name: draftProfile.full_name,
           city: draftProfile.location,
@@ -417,7 +439,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
             if (matched) sal = parseInt(matched[0], 10);
           }
 
-          // Sync Worker Profile to SQLite Database
+          const formattedExperiences = (draftProfile.experiences || []).map((e) => ({
+            company_name: e.company,
+            role_title: e.position,
+            start_date: e.period ? e.period.split('—')[0].trim() : '2023',
+            end_date: e.period && e.period.includes('—') ? e.period.split('—')[1].trim() : undefined,
+            description: e.description || ''
+          }));
+
+          const formattedCertificates = (draftProfile.certificates || []).map((c) => ({
+            title: c.title,
+            issuer: c.issuer,
+            year: c.year || '',
+            credential_url: c.link || ''
+          }));
+
+          // Sync Worker Profile to Database
           await profileService.updateWorkerProfile({
             desired_position: draftProfile.position,
             desired_salary: sal,
@@ -435,11 +472,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
               linkedin: draftProfile.linkedin_url,
               telegram: draftProfile.telegram_url
             },
-            skills: draftProfile.skills
+            skills: draftProfile.skills,
+            experiences: formattedExperiences,
+            certificates: formattedCertificates
           });
         }
       } catch (e) {
-        console.error('Failed to save profile to SQLite DB:', e);
+        console.error('Failed to save profile to DB:', e);
       }
     }
   };
@@ -951,6 +990,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsUploadCvModalOpen(true)}
+            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+          >
+            <Download className="w-4 h-4 rotate-180" />
+            <span>Загрузить CV / Автозаполнение</span>
+          </button>
+
           <button
             onClick={() => openModalWithTab('basic')}
             className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
@@ -2193,6 +2240,29 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ user, onOpenAuth, onLo
           </div>
         </div>
       )}
+
+      {/* CV Upload Modal */}
+      <CVUploadModal
+        isOpen={isUploadCvModalOpen}
+        onClose={() => setIsUploadCvModalOpen(false)}
+        onSuccess={(cvId) => {
+          setIsUploadCvModalOpen(false);
+          setActiveReviewCvId(cvId);
+          setIsReviewModalOpen(true);
+        }}
+      />
+
+      {/* Profile Suggestions Review Modal */}
+      <ProfileSuggestionsReviewModal
+        isOpen={isReviewModalOpen}
+        cvId={activeReviewCvId}
+        onClose={() => setIsReviewModalOpen(false)}
+        onConfirmed={() => {
+          setIsReviewModalOpen(false);
+          // Reload profile from DB
+          window.location.reload();
+        }}
+      />
 
     </div>
   );

@@ -273,28 +273,26 @@ export const CandidatesCatalog: React.FC<CandidatesCatalogProps> = ({
 
                 {/* Card Action Buttons */}
                 <div className="pt-6 border-t border-slate-100 dark:border-slate-700 mt-4 flex items-center gap-2">
-                  {!isCandidateExternal && (
-                    <button
-                      onClick={() => {
-                        if (c.user_id && onOpenChat) {
-                          onOpenChat(c.user_id);
-                        } else {
-                          setContactCandidate(c);
-                        }
-                      }}
-                      className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5"
-                    >
-                      <MessageSquare className="w-4 h-4" />
-                      <span>{t('catalog.contact_btn') || 'Связаться'}</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      if (c.user_id && onOpenChat) {
+                        onOpenChat(c.user_id);
+                      } else {
+                        setContactCandidate(c);
+                      }
+                    }}
+                    className="flex-1 py-3 px-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs sm:text-sm shadow-md transition-all active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden text-ellipsis"
+                  >
+                    <MessageSquare className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{t('catalog.contact_btn') || 'Связаться'}</span>
+                  </button>
 
                   <button
                     onClick={() => setSelectedCandidate(c)}
-                    className={`${isCandidateExternal ? 'flex-1 py-3' : 'py-3 px-4'} rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-xs sm:text-sm border border-indigo-200/80 dark:border-indigo-800/60 transition-all active:scale-95 flex items-center justify-center gap-1.5`}
+                    className="flex-1 py-3 px-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-xs sm:text-sm border border-indigo-200/80 dark:border-indigo-800/60 transition-all active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap overflow-hidden text-ellipsis"
                   >
-                    <Eye className="w-4 h-4" />
-                    <span>{t('catalog.view_resume') || 'Посмотреть резюме'}</span>
+                    <Eye className="w-4 h-4 shrink-0" />
+                    <span className="truncate">{t('catalog.view_resume') || 'Резюме'}</span>
                   </button>
                 </div>
 

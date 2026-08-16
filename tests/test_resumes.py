@@ -14,7 +14,8 @@ async def worker_user(db_session):
         username="worker_resume_test",
         password_hash="hashed_pw",
         role=UserRole.WORKER,
-        full_name="Иван Тестовый"
+        full_name="Иван Тестовый",
+        is_email_verified=True
     )
     db_session.add(user)
     await db_session.commit()
@@ -32,7 +33,8 @@ async def employer_user(db_session):
         username="employer_resume_test",
         password_hash="hashed_pw",
         role=UserRole.EMPLOYER,
-        full_name="Работодатель Тест"
+        full_name="Работодатель Тест",
+        is_email_verified=True
     )
     db_session.add(user)
     await db_session.commit()

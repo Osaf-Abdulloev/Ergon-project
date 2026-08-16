@@ -196,7 +196,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Candidates Catalog & Communication
     'catalog.candidates_title': 'Каталог работников и специалистов',
     'catalog.candidates_sub': 'Поиск квалифицированных соискателей в Таджикистане',
-    'catalog.contact_btn': 'Связаться с кандидатом',
+    'catalog.contact_btn': 'Связаться',
     'catalog.view_resume': 'Посмотреть резюме',
     'catalog.write_chat': 'Написать в чат',
 
@@ -425,7 +425,7 @@ export const translations: Record<Language, Record<string, string>> = {
     // Candidates Catalog & Communication
     'catalog.candidates_title': 'Каталоги мутахассисон ва коргарон',
     'catalog.candidates_sub': 'Чустучуи мутахассисони баландихтисос дар Точикистон',
-    'catalog.contact_btn': 'Дар тамос шудан бо мутахассис',
+    'catalog.contact_btn': 'Тамос гирифтан',
     'catalog.view_resume': 'Дидани тарчумаи хол',
     'catalog.write_chat': 'Навиштан дар чат',
 

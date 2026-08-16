@@ -24,10 +24,23 @@ class AuthService:
         self.token_repo = TokenRepository(session)
 
     async def register_worker(self, req: WorkerRegisterRequest) -> User:
-        if await self.user_repo.get_by_email(req.email):
-            raise ConflictException("Email already registered")
+        existing_user = await self.user_repo.get_by_email(req.email)
+        if existing_user:
+            if existing_user.is_email_verified:
+                raise ConflictException("Пользователь с таким email уже зарегистрирован. Пожалуйста, войдите в аккаунт.")
+            # Unverified account exists: update password & info, force send code
+            existing_user.password_hash = hash_password(req.password)
+            existing_user.username = req.username
+            if req.phone:
+                existing_user.phone = req.phone
+            if req.city:
+                existing_user.city = req.city
+            await self.session.commit()
+            await self.generate_and_send_verification_code(existing_user.id, force=True)
+            return existing_user
+
         if await self.user_repo.get_by_username(req.username):
-            raise ConflictException("Username already taken")
+            raise ConflictException("Имя пользователя уже занято")
 
         user = User(
             email=req.email,
@@ -47,7 +60,7 @@ class AuthService:
         self.session.add(profile)
         await self.session.flush()
 
-        await self.generate_and_send_verification_code(user.id)
+        await self.generate_and_send_verification_code(user.id, force=True)
         return user
 
     async def register_employer(self, req: EmployerRegisterRequest) -> User:
@@ -56,10 +69,22 @@ class AuthService:
         # Verify INN and Company Name against Tax Registry
         _, official_name = verify_company_inn_and_name(req.inn, req.company_name)
 
-        if await self.user_repo.get_by_email(req.email):
-            raise ConflictException("Email already registered")
+        existing_user = await self.user_repo.get_by_email(req.email)
+        if existing_user:
+            if existing_user.is_email_verified:
+                raise ConflictException("Пользователь с таким email уже зарегистрирован. Пожалуйста, войдите в аккаунт.")
+            existing_user.password_hash = hash_password(req.password)
+            existing_user.username = req.username
+            if req.phone:
+                existing_user.phone = req.phone
+            if req.city:
+                existing_user.city = req.city
+            await self.session.commit()
+            await self.generate_and_send_verification_code(existing_user.id, force=True)
+            return existing_user
+
         if await self.user_repo.get_by_username(req.username):
-            raise ConflictException("Username already taken")
+            raise ConflictException("Имя пользователя уже занято")
 
         user = User(
             email=req.email,
@@ -83,24 +108,26 @@ class AuthService:
         self.session.add(company)
         await self.session.flush()
 
-        await self.generate_and_send_verification_code(user.id)
+        await self.generate_and_send_verification_code(user.id, force=True)
         return user
 
     async def login(self, req: LoginRequest, client_ip: Optional[str] = None) -> TokenResponse:
         user = await self.user_repo.get_by_email(req.email)
         if not user or not verify_password(req.password, user.password_hash):
-            raise UnauthorizedException("Invalid email or password")
+            raise UnauthorizedException("Неверный email или пароль")
 
         if not user.is_active:
-            raise UnauthorizedException("User account is deactivated")
+            raise UnauthorizedException("Аккаунт заблокирован")
 
         if not user.is_email_verified:
-            try:
-                await self.generate_and_send_verification_code(user.id)
-            except Exception:
-                pass
+            await self.generate_and_send_verification_code(user.id, force=True)
             from app.core.exceptions import UnverifiedUserException
-            raise UnverifiedUserException("Email не подтверждён. Код подтверждения отправлен на вашу почту.")
+            raise UnverifiedUserException(
+                detail={
+                    "message": "Email не подтверждён. Новый код подтверждения отправлен на ваш email.",
+                    "email": user.email
+                }
+            )
 
         return await self._grant_login_tokens(user, client_ip=client_ip)
 
@@ -158,23 +185,29 @@ class AuthService:
             token_record.revoked_at = datetime.now(timezone.utc)
             await self.session.commit()
 
-    async def generate_and_send_verification_code(self, user_id: uuid.UUID) -> str:
+    async def generate_and_send_verification_code(self, user_id: uuid.UUID, force: bool = False) -> str:
+        import asyncio
         user = await self.user_repo.get_by_id(user_id)
         if not user:
-            raise NotFoundException("User not found")
+            raise NotFoundException("Пользователь не найден")
 
-        # Rate limiting check: check if code sent in last 60 seconds
+        # Rate limiting check: check if code sent in last 60 seconds unless force=True
         latest_token = await self.token_repo.get_latest_email_token_for_user(user_id)
         now = datetime.now(timezone.utc)
-        if latest_token and latest_token.last_sent_at:
+        if not force and latest_token and latest_token.last_sent_at:
             last_sent = ensure_utc(latest_token.last_sent_at)
             if (now - last_sent).total_seconds() < 60:
-                raise ConflictException("Повторная отправка кода возможна раз в 60 секунд")
+                remaining = int(60 - (now - last_sent).total_seconds())
+                raise ConflictException(f"Повторная отправка кода возможна через {remaining} сек.")
 
-        import random
-        code = f"{random.randint(100000, 999999)}"
+        # Generate cryptographically secure random 6-digit code
+        code = f"{secrets.randbelow(900000) + 100000}"
         code_hash = hash_token(code)
-        expires_at = now + timedelta(minutes=15)
+        expires_at = now + timedelta(minutes=10)
+
+        # Invalidate previous unused active tokens for this user
+        if latest_token and latest_token.used_at is None:
+            latest_token.used_at = now
 
         token_model = EmailVerificationToken(
             user_id=user_id,
@@ -187,11 +220,16 @@ class AuthService:
         await self.token_repo.create_email_token(token_model)
         await self.session.commit()
 
+        # Requirement 9: Send verification email DIRECTLY through Gmail SMTP (NO CELERY)
+        from app.services.email_service import EmailService
         try:
-            from app.celery.tasks import send_verification_email_task
-            send_verification_email_task.delay(user.email, code)
-        except Exception:
-            pass
+            sent_ok = await asyncio.to_thread(EmailService.send_verification_code_email, user.email, code)
+            if not sent_ok:
+                raise AppException("Не удалось отправить код на ваш email. Проверьте правильность почты.")
+        except Exception as smtp_err:
+            if isinstance(smtp_err, AppException):
+                raise smtp_err
+            raise AppException(f"Ошибка при отправке email: {str(smtp_err)}")
 
         return code
 
@@ -201,7 +239,7 @@ class AuthService:
     async def confirm_email_verification(self, code_or_token: str, email: Optional[str] = None) -> TokenResponse:
         code_clean = (code_or_token or "").strip()
         if not code_clean:
-            raise AppException("Необходим код подтверждения")
+            raise AppException("Необходим 6-значный код подтверждения")
 
         user = None
         if email:
@@ -224,21 +262,23 @@ class AuthService:
         if user and user.is_email_verified:
             return await self._grant_login_tokens(user)
 
-        if token_record and token_record.used_at is not None:
-            raise AppException("Этот код подтверждения уже был использован")
-
-        now = datetime.now(timezone.utc)
-        if token_record and ensure_utc(token_record.expires_at) < now:
-            raise AppException("Срок действия кода подтверждения истёк. Запросите новый код.")
-
-        if token_record and token_record.attempts_count >= 5:
-            raise AppException("Превышено количество попыток ввода. Запросите новый код.")
-
         if token_record:
-            token_record.attempts_count += 1
-            if token_record.token_hash != token_hash and code_clean != "123456":
+            if token_record.used_at is not None:
+                raise AppException("Этот код подтверждения уже был использован")
+
+            now = datetime.now(timezone.utc)
+            if ensure_utc(token_record.expires_at) < now:
+                raise AppException("Срок действия кода подтверждения истёк. Запросите новый код.")
+
+            if token_record.attempts_count >= 5:
+                raise AppException("Превышено количество попыток ввода. Запросите новый код.")
+
+            # Validate exact code hash match (NO bypasses allowed)
+            if token_record.token_hash != token_hash:
+                token_record.attempts_count += 1
                 await self.session.commit()
                 raise AppException("Неверный код подтверждения")
+
             token_record.used_at = now
 
         if user:
@@ -246,7 +286,7 @@ class AuthService:
             user.is_active = True
             await self.session.commit()
 
-            # Create Welcome notification in DB
+            # Create Welcome notification in DB and queue Celery Welcome Email
             try:
                 from app.services.notification_service import NotificationService
                 from app.models.enums import NotificationType
@@ -264,8 +304,7 @@ class AuthService:
 
             return await self._grant_login_tokens(user)
 
-        raise AppException("Invalid or expired verification token")
-
+        raise AppException("Недействительный или истёкший код подтверждения")
 
     async def create_password_reset_token(self, email: str) -> Optional[str]:
         user = await self.user_repo.get_by_email(email)
@@ -283,6 +322,14 @@ class AuthService:
         )
         await self.token_repo.create_password_token(token_model)
         await self.session.commit()
+
+        # Queue Password Reset Email via Celery
+        try:
+            from app.celery.tasks import send_password_reset_email_task
+            send_password_reset_email_task.delay(user.email, raw_token)
+        except Exception:
+            pass
+
         return raw_token
 
     async def confirm_password_reset(self, raw_token: str, new_password: str) -> None:

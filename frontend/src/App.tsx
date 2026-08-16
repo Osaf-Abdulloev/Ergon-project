@@ -8,6 +8,7 @@ import { ProfilePage } from './components/pages/ProfilePage';
 import { ChatPage } from './components/pages/ChatPage';
 import { AIConsultantPage } from './components/pages/AIConsultantPage';
 import { EmployerDashboard } from './components/pages/EmployerDashboard';
+import { MyJobsPage } from './components/pages/MyJobsPage';
 import { ApplicationsPage } from './components/pages/ApplicationsPage';
 import { CandidatesCatalog } from './components/candidates/CandidatesCatalog';
 import { FavoritesPage } from './components/pages/FavoritesPage';
@@ -22,7 +23,7 @@ import { HamKorIntroLoader } from './components/layout/HamKorIntroLoader';
 import { jobService, authService } from './services/api';
 import { Job, Candidate } from './types';
 
-const VALID_TABS = ['home', 'jobs', 'profile', 'resumes', 'chat', 'ai_consultant', 'employer', 'applications', 'favorites', 'admin'];
+const VALID_TABS = ['home', 'jobs', 'profile', 'resumes', 'chat', 'ai_consultant', 'employer', 'my_jobs', 'applications', 'favorites', 'admin'];
 
 
 const getInitialTab = (): string => {
@@ -74,6 +75,7 @@ export const App: React.FC = () => {
   const [chatRecipientId, setChatRecipientId] = useState<string | null>(() => {
     return localStorage.getItem('ergon_active_chat_recipient') || null;
   });
+  const [selectedJobIdFilter, setSelectedJobIdFilter] = useState<string | null>(null);
 
 
   const changeActiveTab = (tab: string) => {
@@ -99,7 +101,7 @@ export const App: React.FC = () => {
 
   const loadJobs = async () => {
     try {
-      const data = await jobService.getJobs({ limit: 1000 });
+      const data = await jobService.getJobs({ limit: 12, page: 1 });
       const loadedJobs = data.items || [];
       setJobs(loadedJobs);
 
@@ -187,7 +189,7 @@ export const App: React.FC = () => {
     changeActiveTab('ai_consultant');
   };
 
-  const handleNavigateToChat = (recipientId?: string) => {
+  const handleNavigateToChat = (recipientId?: string | null) => {
     if (recipientId) {
       setChatRecipientId(recipientId);
       localStorage.setItem('ergon_active_chat_recipient', recipientId);
@@ -203,7 +205,7 @@ export const App: React.FC = () => {
     changeActiveTab('home');
   };
 
-  const isDashboardView = ['jobs', 'profile', 'resumes', 'chat', 'ai_consultant', 'employer', 'applications', 'favorites'].includes(activeTab);
+  const isDashboardView = ['jobs', 'profile', 'resumes', 'chat', 'ai_consultant', 'employer', 'my_jobs', 'applications', 'favorites'].includes(activeTab);
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#F8FAFC] dark:bg-[#0f172a] text-[#0F172A] dark:text-slate-100 transition-colors duration-200">
@@ -307,10 +309,25 @@ export const App: React.FC = () => {
 
             {activeTab === 'employer' && (
               <EmployerDashboard
-                onJobCreated={loadJobs}
+                onJobCreated={() => {
+                  loadJobs();
+                  changeActiveTab('my_jobs');
+                }}
                 user={user}
                 onOpenAuth={() => setIsAuthOpen(true)}
                 onOpenChat={(chatId) => handleNavigateToChat(chatId)}
+              />
+            )}
+
+            {activeTab === 'my_jobs' && (
+              <MyJobsPage
+                user={user}
+                onOpenAuth={() => setIsAuthOpen(true)}
+                onNavigateToCreateJob={() => changeActiveTab('employer')}
+                onViewCandidates={(jobId) => {
+                  setSelectedJobIdFilter(jobId);
+                  changeActiveTab('applications');
+                }}
               />
             )}
 
@@ -320,6 +337,7 @@ export const App: React.FC = () => {
                 onOpenAuth={() => setIsAuthOpen(true)}
                 onSelectJob={handleSelectJob}
                 onNavigateToChat={handleNavigateToChat}
+                selectedJobIdFilter={selectedJobIdFilter}
               />
             )}
           </DashboardLayout>

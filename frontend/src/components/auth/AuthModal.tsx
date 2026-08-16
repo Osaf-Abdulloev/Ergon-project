@@ -26,7 +26,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [username, setUsername] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [inn, setInn] = useState('');
-  const [verificationCode, setVerificationCode] = useState('123456');
+  const [verificationCode, setVerificationCode] = useState('');
   const [pendingUser, setPendingUser] = useState<any>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -88,19 +88,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
         setPendingUser(pendingUserData);
         setStep('verify');
+        setResendTimer(60);
       }
     } catch (err: any) {
       let serverDetail = err.response?.data?.detail;
+      let targetEmail = email;
+      if (typeof serverDetail === 'object' && serverDetail !== null) {
+        if (serverDetail.email) {
+          targetEmail = serverDetail.email;
+        }
+        serverDetail = serverDetail.message || JSON.stringify(serverDetail);
+      }
       if (Array.isArray(serverDetail)) {
         serverDetail = serverDetail.map((d: any) => d.msg || d.detail).join('; ');
       }
       
-      if (serverDetail === 'Invalid email or password' || serverDetail === 'Incorrect email or password') {
+      if (serverDetail === 'Invalid email or password' || serverDetail === 'Incorrect email or password' || serverDetail === 'Неверный email или пароль') {
         setError('Неверный email / имя пользователя или пароль.');
-      } else if (err.response?.status === 403 && (serverDetail?.includes('не подтверждён') || serverDetail?.includes('unverified'))) {
-        setPendingUser({ email, role });
+      } else if (err.response?.status === 403 || (typeof serverDetail === 'string' && (serverDetail.includes('не подтверждён') || serverDetail.includes('unverified')))) {
+        setEmail(targetEmail);
+        setPendingUser({ email: targetEmail, role });
         setStep('verify');
-        setError('Ваш Email ещё не подтверждён. Код отправлен на вашу почту.');
+        setResendTimer(60);
+        setError('Email не подтверждён. Новый код подтверждения отправлен на ваш email.');
       } else {
         setError(serverDetail || 'Ошибка проверки данных. Проверьте правильность заполнения полей.');
       }
@@ -219,11 +229,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                     maxLength={6}
                     value={verificationCode}
                     onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="123456"
+                    placeholder="000000"
                     className="w-full text-center tracking-widest text-xl font-black py-3 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-indigo-50/50 dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-indigo-500 outline-none shadow-inner"
                   />
-                  <div className="mt-2 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 font-medium">Тестовый код: <strong className="text-slate-600 dark:text-slate-300">123456</strong></span>
+                  <div className="mt-2 flex items-center justify-end text-[11px]">
                     <button
                       type="button"
                       onClick={handleResendCode}

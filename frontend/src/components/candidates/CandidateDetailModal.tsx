@@ -4,6 +4,7 @@ import { X, MapPin, DollarSign, Briefcase, GraduationCap, Phone, Mail, Award, Ch
 import { Candidate } from '../../types';
 import { ContactCandidateModal } from './ContactCandidateModal';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { candidateService } from '../../services/api';
 import { resumeService } from '../../services/resumeService';
 import { ResumePreviewCard } from '../resumes/ResumePreviewCard';
 
@@ -25,11 +26,22 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
   const { t } = useLanguage();
   const [showContactModal, setShowContactModal] = useState(false);
   const [publishedResume, setPublishedResume] = useState<any | null>(null);
+  const [fullProfile, setFullProfile] = useState<any | null>(candidate);
   const [viewTab, setViewTab] = useState<'profile' | 'resume'>('profile');
 
   useEffect(() => {
-    if (candidate && (candidate.user_id || (candidate as any).user?.id)) {
-      const uId = candidate.user_id || (candidate as any).user?.id;
+    setFullProfile(candidate);
+    if (candidate && (candidate.user_id || (candidate as any).user?.id || candidate.id)) {
+      const uId = candidate.user_id || (candidate as any).user?.id || candidate.id;
+
+      // 1. Fetch complete worker profile with all real skills, experiences, certificates from PostgreSQL
+      candidateService.getCandidateProfile(uId.toString()).then((res) => {
+        if (res) {
+          setFullProfile(res);
+        }
+      }).catch((err) => console.error('Error fetching candidate worker profile from PostgreSQL:', err));
+
+      // 2. Fetch candidate's real published AI Resume from PostgreSQL
       resumeService.getCandidatePublishedResume(uId.toString()).then((res) => {
         if (res) {
           setPublishedResume(res);
@@ -63,17 +75,18 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
 
   if (!candidate) return null;
 
-  const u: any = candidate.user || {};
-  const fullName = u.full_name || u.username || candidate.desired_position || 'Соискатель';
+  const currentCand = fullProfile || candidate;
+  const u: any = currentCand.user || {};
+  const fullName = u.full_name || u.username || currentCand.desired_position || 'Соискатель';
   const avatarUrl = u.avatar_url;
-  const position = candidate.desired_position || 'Специалист';
-  const salary = candidate.desired_salary && candidate.desired_salary > 0 ? candidate.desired_salary : null;
+  const position = currentCand.desired_position || 'Специалист';
+  const salary = currentCand.desired_salary && currentCand.desired_salary > 0 ? currentCand.desired_salary : null;
   const city = u.city || 'Таджикистан';
   const phone = u.phone;
   const email = u.email;
-  const skills = candidate.skills || [];
-  const experiences = candidate.experiences || [];
-  const coverNote = (candidate as any).cover_note;
+  const skills = currentCand.skills || [];
+  const experiences = currentCand.experiences || [];
+  const coverNote = (candidate as any).cover_note || (currentCand as any).cover_note;
   const isExternal = (candidate as any).is_external || (candidate as any).source === 'yora';
 
   const handleContactClick = (type: 'phone' | 'email') => {
@@ -117,8 +130,8 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                     viewTab === 'resume' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>ИИ Резюме (Опубликовано ✓)</span>
+                  <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Резюме (Опубликовано ✓)</span>
                 </button>
                 <button
                   onClick={() => setViewTab('profile')}
@@ -169,8 +182,8 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
           <div className="p-6 sm:p-12 max-w-4xl mx-auto space-y-6">
             <div className="p-4 rounded-2xl bg-indigo-900/60 border border-indigo-700/50 text-indigo-100 text-xs font-semibold flex items-center justify-between gap-4 shadow-md">
               <div className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-400 animate-pulse shrink-0" />
-                <span>Опубликованное ИИ-резюме кандидата ({fullName})</span>
+                <FileText className="w-5 h-5 text-indigo-400 shrink-0" />
+                <span>Официальное резюме кандидата ({fullName})</span>
               </div>
               <button
                 onClick={() => {
@@ -305,7 +318,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                 </h3>
 
                 <div className="flex flex-wrap gap-2">
-                  {skills.map((s, idx) => {
+                  {skills.map((s: any, idx: number) => {
                     const skillName = typeof s === 'string' ? s : (s.name || 'Навык');
                     return (
                       <span
@@ -376,7 +389,7 @@ export const CandidateDetailModal: React.FC<CandidateDetailModalProps> = ({
                 </h3>
 
                 <div className="space-y-4">
-                  {experiences.map((exp, idx) => (
+                  {experiences.map((exp: any, idx: number) => (
                     <div key={exp.id || idx} className="p-6 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-2 hover:border-indigo-700/50 transition-all">
                       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-3">
                         <div>

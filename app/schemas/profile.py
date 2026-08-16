@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 from typing import List, Optional, Any
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from app.schemas.user import UserOut
 
 class SkillOut(BaseModel):
@@ -79,11 +79,14 @@ class WorkerProfileUpdate(BaseModel):
     driving_categories: Optional[Any] = None
     has_own_car: Optional[bool] = None
     skills: Optional[List[str]] = None
+    experiences: Optional[List[ExperienceCreate]] = None
+    certificates: Optional[List[CertificateCreate]] = None
 
 class CompanyOut(BaseModel):
     id: uuid.UUID
     employer_id: uuid.UUID
     company_name: str
+    inn: Optional[str] = None
     description: Optional[str] = None
     logo_url: Optional[str] = None
     website: Optional[str] = None
@@ -92,6 +95,11 @@ class CompanyOut(BaseModel):
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     employee_count: Optional[str] = None
+    target_position: Optional[str] = None
+    required_skills: Optional[Any] = None
+    min_experience_years: Optional[str] = None
+    offered_salary_min: Optional[float] = None
+    offered_salary_max: Optional[float] = None
     is_verified: bool
     created_at: datetime
 
@@ -99,6 +107,7 @@ class CompanyOut(BaseModel):
 
 class CompanyUpdate(BaseModel):
     company_name: Optional[str] = None
+    inn: Optional[str] = None
     description: Optional[str] = None
     logo_url: Optional[str] = None
     website: Optional[str] = None
@@ -107,3 +116,19 @@ class CompanyUpdate(BaseModel):
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     employee_count: Optional[str] = None
+    target_position: Optional[str] = None
+    required_skills: Optional[Any] = None
+    min_experience_years: Optional[str] = None
+    offered_salary_min: Optional[float] = None
+    offered_salary_max: Optional[float] = None
+
+    @field_validator('offered_salary_min', 'offered_salary_max', mode='before')
+    @classmethod
+    def parse_float_fields(cls, v: Any) -> Optional[float]:
+        if v == "" or v is None or v == "null":
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return None
+

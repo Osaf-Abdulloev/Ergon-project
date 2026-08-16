@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Bookmark, Building2, ChevronLeft, ChevronRight, ExternalLink, Sparkles, MapPin, Zap } from 'lucide-react';
 import { Job } from '../../types';
 import { useLanguage } from '../../i18n/LanguageContext';
-
+import { jobService } from '../../services/api';
 import { getSavedUserProfile, evaluateProfileJobMatch } from '../../services/matchService';
 
 interface JobsCatalogProps {
@@ -12,15 +12,53 @@ interface JobsCatalogProps {
 }
 
 export const JobsCatalog: React.FC<JobsCatalogProps> = ({
-  jobs,
+  jobs: initialPropJobs,
   onSelectJob,
   initialSearch = '',
 }) => {
   const { t } = useLanguage();
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState('All Roles');
+  const [selectedCity, setSelectedCity] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [catalogJobs, setCatalogJobs] = useState<Job[]>(initialPropJobs);
+  const [isSearching, setIsSearching] = useState(false);
   const itemsPerPage = 8;
+
+  useEffect(() => {
+    setCatalogJobs(initialPropJobs);
+  }, [initialPropJobs]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const timer = setTimeout(async () => {
+      if (!searchTerm && selectedCity === 'all' && (selectedCategory === 'All Roles' || selectedCategory === t('catalog.cat_all'))) {
+        return;
+      }
+      try {
+        setIsSearching(true);
+        const res = await jobService.getJobs({
+          title: searchTerm || undefined,
+          location: selectedCity !== 'all' ? selectedCity : undefined,
+          category: (selectedCategory !== 'All Roles' && selectedCategory !== t('catalog.cat_all') && selectedCategory !== t('catalog.cat_remote') && selectedCategory !== t('catalog.cat_matched')) ? selectedCategory : undefined,
+          employment_type: selectedCategory === t('catalog.cat_remote') ? 'remote' : undefined,
+          limit: 50
+        });
+        if (isMounted && res.items) {
+          setCatalogJobs(res.items);
+        }
+      } catch (e) {
+        console.error('Server job search error:', e);
+      } finally {
+        if (isMounted) setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [searchTerm, selectedCity, selectedCategory, t]);
 
   const categories = [
     t('catalog.cat_all'),
@@ -31,12 +69,9 @@ export const JobsCatalog: React.FC<JobsCatalogProps> = ({
     t('catalog.cat_remote')
   ];
 
-  // Read saved user profile from localStorage to compute personalized job match & skills match
   const userProfile = useMemo(() => {
     return getSavedUserProfile();
   }, []);
-
-  const [selectedCity, setSelectedCity] = useState<string>('all');
 
   const evaluateJobWithProfile = (job: Job) => {
     return evaluateProfileJobMatch(job, userProfile);
@@ -44,7 +79,15 @@ export const JobsCatalog: React.FC<JobsCatalogProps> = ({
 
   // Filter real jobs list dynamically & sort ALL jobs by match score
   const filteredJobs = useMemo(() => {
-    let result = jobs.filter((job) => {
+    const scoreMap = new Map<string, number>();
+    const getScore = (j: Job) => {
+      if (!scoreMap.has(j.id)) {
+        scoreMap.set(j.id, j.match_score ?? evaluateJobWithProfile(j).matchScore);
+      }
+      return scoreMap.get(j.id)!;
+    };
+
+    let result = catalogJobs.filter((job) => {
       // Search term
       const sLower = searchTerm.toLowerCase().trim();
       const matchSearch =
@@ -65,7 +108,7 @@ export const JobsCatalog: React.FC<JobsCatalogProps> = ({
       if (selectedCategory === t('catalog.cat_remote')) {
         matchCategory = job.employment_type === 'remote' || job.location.toLowerCase().includes('удален') || job.description.toLowerCase().includes('удален');
       } else if (selectedCategory === t('catalog.cat_matched')) {
-        const score = job.match_score ?? evaluateJobWithProfile(job).matchScore;
+        const score = getScore(job);
         matchCategory = score >= 65;
       } else if (selectedCategory !== t('catalog.cat_all') && selectedCategory !== 'All Roles') {
         matchCategory = 
@@ -78,12 +121,8 @@ export const JobsCatalog: React.FC<JobsCatalogProps> = ({
     });
 
     // Always sort ALL jobs by match score descending so top profile matches are 1st
-    return [...result].sort((a, b) => {
-      const scoreA = a.match_score ?? evaluateJobWithProfile(a).matchScore;
-      const scoreB = b.match_score ?? evaluateJobWithProfile(b).matchScore;
-      return scoreB - scoreA;
-    });
-  }, [jobs, searchTerm, selectedCity, selectedCategory, userProfile, t]);
+    return [...result].sort((a, b) => getScore(b) - getScore(a));
+  }, [catalogJobs, searchTerm, selectedCity, selectedCategory, userProfile, t]);
 
   const totalPages = Math.ceil(filteredJobs.length / itemsPerPage) || 1;
 

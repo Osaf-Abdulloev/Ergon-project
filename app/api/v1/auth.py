@@ -102,7 +102,10 @@ async def logout(req: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/verify-email", response_model=TokenResponse)
 async def verify_email(req: VerifyEmailRequest, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
-    code_val = req.code or req.token or "123456"
+    code_val = req.code or req.token
+    if not code_val:
+        from app.core.exceptions import BadRequestException
+        raise BadRequestException("Укажите 6-значный код подтверждения")
     return await service.confirm_email_verification(code_val, req.email)
 
 @router.post("/resend-verification", response_model=MessageResponse)
@@ -121,7 +124,7 @@ async def resend_verification(req: Optional[ResendVerificationRequest] = None, c
     if user.is_email_verified:
         return MessageResponse(message="Email уже подтверждён")
 
-    await service.generate_and_send_verification_code(user.id)
+    await service.generate_and_send_verification_code(user.id, force=True)
     return MessageResponse(message="Новый код подтверждения отправлен на ваш email")
 
 @router.post("/forgot-password", response_model=MessageResponse)

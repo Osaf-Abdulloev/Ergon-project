@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Briefcase, FileText, Send, RefreshCw, Shield, ShieldAlert, 
-  Search, CheckCircle, Clock, AlertTriangle, UserCheck, UserX, ChevronRight, X
+  Search, CheckCircle, Clock, AlertTriangle, UserCheck, UserX, ChevronRight, X, Trash2
 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { adminService } from '../../services/api';
@@ -26,6 +26,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onOpenAuth
   const [muteDuration, setMuteDuration] = useState<number>(24); // hours
   const [muteReason, setMuteReason] = useState<string>('');
   const [submittingMute, setSubmittingMute] = useState(false);
+
+  // Hard Delete Modal State
+  const [deleteModalUser, setDeleteModalUser] = useState<any>(null);
+  const [submittingDelete, setSubmittingDelete] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -111,6 +115,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onOpenAuth
       await loadData();
     } catch (err) {
       console.error('Error unmuting user:', err);
+    }
+  };
+
+  const handleOpenDeleteModal = (u: any) => {
+    setDeleteModalUser(u);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModalUser) return;
+    setSubmittingDelete(true);
+    try {
+      await adminService.deleteUser(deleteModalUser.id);
+      setDeleteModalUser(null);
+      await loadData();
+    } catch (err: any) {
+      console.error('Error deleting user permanently:', err);
+      alert(err?.response?.data?.detail || 'Ошибка при удалении пользователя');
+    } finally {
+      setSubmittingDelete(false);
     }
   };
 
@@ -496,23 +519,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onOpenAuth
 
                   {/* Actions */}
                   <td className="py-4 px-6 text-right">
-                    {u.is_muted ? (
-                      <button
-                        onClick={() => handleUnmute(u.id)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 font-bold transition text-xs inline-flex items-center gap-1"
-                      >
-                        <UserCheck className="w-3.5 h-3.5" />
-                        {t('admin.action_unmute')}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleOpenMuteModal(u)}
-                        className="px-3 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900 font-bold transition text-xs inline-flex items-center gap-1"
-                      >
-                        <UserX className="w-3.5 h-3.5" />
-                        {t('admin.action_mute')}
-                      </button>
-                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      {u.is_muted ? (
+                        <button
+                          onClick={() => handleUnmute(u.id)}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 font-bold transition text-xs inline-flex items-center gap-1"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          {t('admin.action_unmute')}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleOpenMuteModal(u)}
+                          className="px-3 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900 font-bold transition text-xs inline-flex items-center gap-1"
+                        >
+                          <UserX className="w-3.5 h-3.5" />
+                          {t('admin.action_mute')}
+                        </button>
+                      )}
+
+                      {/* Hard Delete Button */}
+                      {user.id !== u.id && (
+                        <button
+                          onClick={() => handleOpenDeleteModal(u)}
+                          title="Удалить аккаунт навсегда (Hard Delete)"
+                          className="px-2.5 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 font-bold transition text-xs inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Удалить
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -605,6 +642,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onOpenAuth
                 className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-lg shadow-red-600/20"
               >
                 {submittingMute ? 'Захват...' : t('admin.confirm_mute')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hard Delete Confirmation Modal */}
+      {deleteModalUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-red-500/20 relative animate-in fade-in zoom-in">
+            <button
+              onClick={() => setDeleteModalUser(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 rounded-xl flex items-center justify-center font-bold">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base">
+                  Полное удаление аккаунта
+                </h3>
+                <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
+                  Внимание: Действие безвозвратно!
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-2xl p-4 mb-6 text-xs text-red-950 dark:text-red-200 space-y-2">
+              <p className="font-bold">
+                Вы действительно хотите полностью (Hard Delete) удалить пользователя:
+              </p>
+              <p className="font-mono text-sm font-extrabold text-red-600 dark:text-red-400">
+                {deleteModalUser.full_name || deleteModalUser.username} ({deleteModalUser.email})
+              </p>
+              <p className="text-slate-600 dark:text-slate-300 pt-1">
+                Все связанные данные (профиль, вакансии, отклики, сообщения, файлы) будут навсегда удалены из базы данных без возможности восстановления.
+              </p>
+            </div>
+
+            {/* Modal Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteModalUser(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                disabled={submittingDelete}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition disabled:opacity-50"
+              >
+                {submittingDelete ? 'Удаление...' : 'Да, удалить навсегда'}
               </button>
             </div>
           </div>

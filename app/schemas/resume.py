@@ -109,6 +109,7 @@ class ResumeOut(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     source_file_id: Optional[uuid.UUID] = None
+    source_cv_id: Optional[uuid.UUID] = None
     title: str
     target_position: Optional[str] = None
     status: ResumeStatus
@@ -117,6 +118,8 @@ class ResumeOut(BaseModel):
     completeness_score: int
     is_published: bool
     published_at: Optional[datetime] = None
+    is_default: bool = False
+    pinned_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

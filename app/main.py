@@ -19,6 +19,7 @@ from app.api.v1.files import router as files_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.admin import router as admin_router
 from app.api.v1.resumes import router as resumes_router
+from app.api.v1.cv import router as cv_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,6 +39,12 @@ async def lifespan(app: FastAPI):
                 ("users", "last_login_at DATETIME"),
                 ("applications", "cover_note TEXT"),
                 ("applications", "employer_feedback TEXT"),
+                ("applications", "rejection_reason VARCHAR(255)"),
+                ("applications", "rating INTEGER"),
+                ("applications", "is_read_by_employer BOOLEAN DEFAULT 0"),
+                ("applications", "read_at DATETIME"),
+                ("applications", "reviewed_at DATETIME"),
+                ("applications", "cancelled_at DATETIME"),
                 ("jobs", "requirements TEXT"),
                 ("jobs", "tags TEXT"),
                 ("jobs", "benefits TEXT"),
@@ -55,6 +62,11 @@ async def lifespan(app: FastAPI):
                 ("companies", "contact_email VARCHAR(255)"),
                 ("companies", "contact_phone VARCHAR(50)"),
                 ("companies", "employee_count VARCHAR(50)"),
+                ("companies", "target_position VARCHAR(255)"),
+                ("companies", "required_skills TEXT"),
+                ("companies", "min_experience_years VARCHAR(50)"),
+                ("companies", "offered_salary_min FLOAT"),
+                ("companies", "offered_salary_max FLOAT"),
                 ("worker_profiles", "relocation_preference VARCHAR(50)"),
                 ("worker_profiles", "commute_preference VARCHAR(50)"),
                 ("worker_profiles", "work_format VARCHAR(50)"),
@@ -73,6 +85,10 @@ async def lifespan(app: FastAPI):
                 ("users", "telegram_chat_id VARCHAR(100)"),
                 ("users", "telegram_username VARCHAR(100)"),
                 ("users", "telegram_link_code VARCHAR(50)"),
+                ("resumes", "source_cv_id CHAR(36)"),
+                ("resumes", "is_default BOOLEAN DEFAULT 0"),
+                ("resumes", "pinned_at DATETIME"),
+                ("applications", "resume_id CHAR(36)"),
                 ("email_verification_tokens", "attempts_count INTEGER DEFAULT 0"),
                 ("email_verification_tokens", "last_sent_at DATETIME"),
                 ("email_verification_tokens", "created_at DATETIME")
@@ -88,7 +104,12 @@ async def lifespan(app: FastAPI):
                             if col_name not in existing_cols:
                                 await sub_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_def};"))
                         else:
-                            await sub_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col_def};"))
+                            pg_col_def = (
+                                col_def.replace("DATETIME", "TIMESTAMP WITH TIME ZONE")
+                                .replace("BOOLEAN DEFAULT 0", "BOOLEAN DEFAULT false")
+                                .replace("CHAR(36)", "UUID")
+                            )
+                            await sub_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {pg_col_def};"))
                 except Exception as col_err:
                     pass
 
@@ -183,6 +204,7 @@ app.include_router(files_router, prefix=settings.API_V1_STR)
 app.include_router(ai_router, prefix=settings.API_V1_STR)
 app.include_router(admin_router, prefix=settings.API_V1_STR)
 app.include_router(resumes_router, prefix=settings.API_V1_STR)
+app.include_router(cv_router, prefix=settings.API_V1_STR)
 
 from fastapi import HTTPException
 from fastapi.staticfiles import StaticFiles

@@ -244,6 +244,24 @@ class ResumeService:
         await self.session.commit()
         return True
 
+    async def set_default_resume(self, user: User, resume_id: uuid.UUID) -> Resume:
+        if user.role != UserRole.WORKER:
+            raise ForbiddenException("AI Resume Builder is only accessible for Job Seekers.")
+
+        resume = await self.repo.get_by_id_and_user(resume_id, user.id)
+        if not resume:
+            raise NotFoundException("Resume document not found")
+
+        # Unset default on all user's resumes
+        all_resumes = await self.repo.get_user_resumes(user.id)
+        for r in all_resumes:
+            r.is_default = (r.id == resume.id)
+            if r.id == resume.id:
+                r.pinned_at = datetime.now(timezone.utc)
+
+        await self.session.commit()
+        return resume
+
     async def _sync_worker_profile_from_resume(self, user_id: uuid.UUID, content: Dict[str, Any]) -> None:
         """
         Synchronizes published resume sections into the user's User and WorkerProfile database records.

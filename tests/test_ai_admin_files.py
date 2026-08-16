@@ -5,7 +5,9 @@ import pytest
 async def test_ai_admin_and_file_endpoints(client):
     w_reg = {"email": "ai_user@example.com", "username": "ai_user", "password": "password123"}
     await client.post("/api/v1/auth/register/worker", json=w_reg)
-    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "ai_user@example.com", "code": "123456"})
+    from tests.conftest import get_captured_code
+    w_code = get_captured_code("ai_user@example.com")
+    w_verify = await client.post("/api/v1/auth/verify-email", json={"email": "ai_user@example.com", "code": w_code})
     w_token = w_verify.json()["access_token"]
     w_headers = {"Authorization": f"Bearer {w_token}"}
 

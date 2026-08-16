@@ -1,6 +1,7 @@
 import React from 'react';
 import { MapPin, Building2, Eye, ArrowUpRight } from 'lucide-react';
 import { Job } from '../../types';
+import { openTelegramLink } from '../../utils/telegram';
 
 interface JobCardProps {
   job: Job;
@@ -153,9 +154,16 @@ export const JobCard: React.FC<JobCardProps> = ({ job, onSelectJob }) => {
           ) : isExternal && job.external_url ? (
             <a
               href={job.external_url}
+              onClick={(e) => {
+                const src = (job.external_source || '').toLowerCase();
+                const url = (job.external_url || '').toLowerCase();
+                if (src.includes('telegram') || url.includes('t.me') || url.includes('telegram')) {
+                  openTelegramLink(e, job.external_url!);
+                }
+              }}
               target="_blank"
               rel="noopener noreferrer"
-              className="gradient-btn text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 font-semibold"
+              className="gradient-btn text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 font-semibold cursor-pointer"
             >
               <span>Откликнуться</span>
               <ArrowUpRight className="w-3.5 h-3.5" />

@@ -10,7 +10,9 @@ async def test_job_lifecycle_and_application(client):
         "industry": "Software"
     }
     await client.post("/api/v1/auth/register/employer", json=emp_reg)
-    ver_emp = await client.post("/api/v1/auth/verify-email", json={"email": "emp_jobs@example.com", "code": "123456"})
+    from tests.conftest import get_captured_code
+    emp_code = get_captured_code("emp_jobs@example.com")
+    ver_emp = await client.post("/api/v1/auth/verify-email", json={"email": "emp_jobs@example.com", "code": emp_code})
     emp_token = ver_emp.json()["access_token"]
     emp_headers = {"Authorization": f"Bearer {emp_token}"}
 
@@ -37,7 +39,8 @@ async def test_job_lifecycle_and_application(client):
         "city": "Dushanbe"
     }
     await client.post("/api/v1/auth/register/worker", json=wrk_reg)
-    ver_wrk = await client.post("/api/v1/auth/verify-email", json={"email": "wrk_jobs@example.com", "code": "123456"})
+    wrk_code = get_captured_code("wrk_jobs@example.com")
+    ver_wrk = await client.post("/api/v1/auth/verify-email", json={"email": "wrk_jobs@example.com", "code": wrk_code})
     wrk_token = ver_wrk.json()["access_token"]
     wrk_headers = {"Authorization": f"Bearer {wrk_token}"}
 
@@ -66,4 +69,12 @@ async def test_job_lifecycle_and_application(client):
     )
     assert status_update_res.status_code == 200
     assert status_update_res.json()["status"] == "accepted"
+
+    # Verify candidate get_my_applications returns exactly 1 deduplicated item
+    my_apps_res = await client.get("/api/v1/applications/my", headers=wrk_headers)
+    assert my_apps_res.status_code == 200
+    my_apps = my_apps_res.json()
+    assert my_apps["total"] == 1
+    assert len(my_apps["items"]) == 1
+    assert my_apps["items"][0]["id"] == app_data["id"]
 

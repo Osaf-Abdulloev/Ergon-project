@@ -6,6 +6,7 @@ import { applicationService, jobService } from '../../services/api';
 import { saveUserApplication } from '../pages/ApplicationsPage';
 import { resumeService } from '../../services/resumeService';
 import { Resume } from '../../types/resume';
+import { openTelegramLink } from '../../utils/telegram';
 
 interface JobDetailModalProps {
   job: Job | null;
@@ -131,12 +132,14 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose, us
     };
 
     try {
-      await applicationService.applyToJob({ 
+      const appRes = await applicationService.applyToJob({ 
         job_id: job.id, 
         cover_note: coverNote,
         resume_id: selectedResumeId || undefined
       });
-      saveUserApplication(activeUserId, appData);
+      if (appRes && appRes.id) {
+        appData.id = appRes.id;
+      }
       setAppliedSuccess(true);
       setHasAlreadyApplied(true);
       window.dispatchEvent(new Event('ergon_applications_updated'));
@@ -381,9 +384,14 @@ export const JobDetailModal: React.FC<JobDetailModalProps> = ({ job, onClose, us
             {isExternal && job.external_url ? (
               <a
                 href={job.external_url}
+                onClick={(e) => {
+                  if (sourceInfo.type === 'telegram' || (job.external_url || '').toLowerCase().includes('t.me')) {
+                    openTelegramLink(e, job.external_url!);
+                  }
+                }}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`px-6 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 w-full sm:w-auto shadow-md transition-all active:scale-95 ${sourceInfo.buttonClass}`}
+                className={`px-6 py-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 w-full sm:w-auto shadow-md transition-all active:scale-95 cursor-pointer ${sourceInfo.buttonClass}`}
               >
                 {sourceInfo.type === 'telegram' ? (
                   <Send className="w-4 h-4" />

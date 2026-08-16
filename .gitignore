@@ -10,3 +10,5 @@ frontend/.next/
 frontend/dist/
 ergon.db
 *.db
+*.db-shm
+*.db-wal

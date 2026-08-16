@@ -103,6 +103,31 @@ class UserService:
                 ws = WorkerSkill(worker_profile_id=profile.id, skill_id=skill.id)
                 profile.worker_skills.append(ws)
 
+        if data.experiences is not None:
+            profile.experiences.clear()
+            for exp_item in data.experiences:
+                exp = Experience(
+                    worker_profile_id=profile.id,
+                    company_name=exp_item.company_name,
+                    role_title=exp_item.role_title,
+                    start_date=exp_item.start_date,
+                    end_date=exp_item.end_date,
+                    description=exp_item.description
+                )
+                profile.experiences.append(exp)
+
+        if data.certificates is not None:
+            profile.certificates.clear()
+            for cert_item in data.certificates:
+                cert = Certificate(
+                    worker_profile_id=profile.id,
+                    title=cert_item.title,
+                    issuer=cert_item.issuer,
+                    year=cert_item.year,
+                    credential_url=cert_item.credential_url
+                )
+                profile.certificates.append(cert)
+
         await self.worker_repo.update(profile)
         await self.session.commit()
         return await self.get_worker_profile(user_id)
@@ -185,9 +210,12 @@ class UserService:
         company = await self.company_repo.get_by_employer_id(employer_id)
         if not company:
             user = await self.user_repo.get_by_id(employer_id)
+            c_name = (user.full_name or user.username or "Компания") if user else "Компания"
             company = Company(
                 employer_id=employer_id,
-                company_name=user.full_name or user.username or "Компания",
+                company_name=c_name,
+                contact_email=user.email if user else None,
+                contact_phone=user.phone if user else None,
                 is_verified=True
             )
             self.session.add(company)
@@ -198,6 +226,8 @@ class UserService:
         company = await self.get_company_profile(employer_id)
         if data.company_name is not None:
             company.company_name = data.company_name
+        if data.inn is not None:
+            company.inn = data.inn
         if data.description is not None:
             company.description = data.description
         if data.logo_url is not None:
@@ -214,8 +244,30 @@ class UserService:
             company.contact_phone = data.contact_phone
         if data.employee_count is not None:
             company.employee_count = data.employee_count
+        if data.target_position is not None:
+            company.target_position = data.target_position
+        if data.required_skills is not None:
+            company.required_skills = data.required_skills
+        if data.min_experience_years is not None:
+            company.min_experience_years = data.min_experience_years
+        if data.offered_salary_min is not None:
+            company.offered_salary_min = data.offered_salary_min
+        if data.offered_salary_max is not None:
+            company.offered_salary_max = data.offered_salary_max
 
         await self.company_repo.update(company)
+
+        # Sync User details
+        user = await self.user_repo.get_by_id(employer_id)
+        if user:
+            if data.company_name:
+                user.full_name = data.company_name
+            if data.logo_url:
+                user.avatar_url = data.logo_url
+            if data.contact_phone:
+                user.phone = data.contact_phone
+            await self.user_repo.update(user)
+
         await self.session.commit()
         return company
 

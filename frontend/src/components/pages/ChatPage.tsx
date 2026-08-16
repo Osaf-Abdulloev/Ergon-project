@@ -453,7 +453,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ user, onOpenAuth, initialRec
                 <div>
                   <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">{activeChatTitle}</h3>
                   <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> В сети • WebSocket Live Chat
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> В сети
                   </span>
                 </div>
               </div>
@@ -617,7 +617,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ user, onOpenAuth, initialRec
                   </button>
                   <input
                     type="text"
-                    placeholder="Напишите сообщение собеседнику в WebSocket чате..."
+                    placeholder="Напишите сообщение..."
                     value={inputText}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -647,7 +647,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({ user, onOpenAuth, initialRec
             <div className="space-y-1">
               <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">Выберите диалог</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm font-medium">
-                Выберите диалог из списка слева для переписки в WebSocket-чате.
+                Выберите диалог из списка слева для начала переписки.
               </p>
             </div>
           </div>

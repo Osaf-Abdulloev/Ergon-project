@@ -32,6 +32,7 @@ export interface UserProfileData {
 
 export interface EmployerProfileData {
   company_name: string;
+  inn?: string;
   industry: string;
   company_description: string;
   location: string;
@@ -158,7 +159,6 @@ export const saveEmployerProfile = (data: EmployerProfileData, user?: any): void
   }
 };
 
-// Common tech & industry skills dictionary for intelligent gap detection
 const SKILL_DICTIONARY: Record<string, string[]> = {
   it: ['React', 'JavaScript', 'TypeScript', 'Python', 'FastAPI', 'Node.js', 'PostgreSQL', 'Docker', 'Git', 'HTML/CSS', 'Tailwind', 'REST API', 'Figma'],
   procurement: ['Закупки', 'Переговоры', 'Снабжение', 'Тендеры', 'ВЭД', 'Логистика', 'Поставщики', '1С: Склад', 'Договоры', 'Экспорт/Импорт'],
@@ -167,6 +167,8 @@ const SKILL_DICTIONARY: Record<string, string[]> = {
   sales: ['B2B Продажи', 'Переговоры', 'Холодные звонки', 'CRM', 'Работа с клиентами', 'Презентации', 'Выполнение плана продаж'],
   legal: ['Юриспруденция', 'Договорное право', 'Претензионная работа', 'Консультирование', 'Составление исков', 'Корпоративное право']
 };
+
+const evalCache = new Map<string, ProfileMatchEvaluation>();
 
 export const evaluateProfileJobMatch = (
   job: Job,
@@ -182,7 +184,7 @@ export const evaluateProfileJobMatch = (
     completenessScore: 5
   };
 
-  if (!profile) {
+  if (!job || !job.id) {
     return {
       matchScore: 75,
       scoreBreakdown: defaultBreakdown,
@@ -193,6 +195,27 @@ export const evaluateProfileJobMatch = (
       commuteEstimate: '~15-20 мин',
       distanceEstimate: '~4 км от центра'
     };
+  }
+
+  const profSig = profile ? `${profile.position || ''}_${(profile.skills || []).join(',')}_${profile.location || ''}` : 'none';
+  const cacheKey = `${job.id}_${profSig}`;
+  if (evalCache.has(cacheKey)) {
+    return evalCache.get(cacheKey)!;
+  }
+
+  if (!profile) {
+    const defaultRes: ProfileMatchEvaluation = {
+      matchScore: 75,
+      scoreBreakdown: defaultBreakdown,
+      matchedSkills: [],
+      missingSkills: [],
+      matchedReasons: ['Базовое соответствие требованиям'],
+      growthAdvice: ['Заполните профиль для расчета 100% точного совпадения'],
+      commuteEstimate: '~15-20 мин',
+      distanceEstimate: '~4 км от центра'
+    };
+    evalCache.set(cacheKey, defaultRes);
+    return defaultRes;
   }
 
   const userPos = (profile.position || '').toLowerCase().trim();
@@ -216,7 +239,6 @@ export const evaluateProfileJobMatch = (
   const missingSkills: string[] = [];
   const growthAdvice: string[] = [];
 
-  // 1. Position & Domain Match (max 30 pts)
   if (userPos && (jTitle.includes(userPos) || userPos.includes(jTitle))) {
     positionScore = 30;
     matchedReasons.push(`Должность: "${profile.position}"`);
@@ -255,7 +277,6 @@ export const evaluateProfileJobMatch = (
     matchedReasons.push('Частичное совпадение сферы работы');
   }
 
-  // 2. Skill Overlap & Gap Analysis (max 35 pts)
   for (const skill of profile.skills || []) {
     const sLower = skill.toLowerCase().trim();
     if (sLower && (jTitle.includes(sLower) || jDesc.includes(sLower))) {
@@ -269,7 +290,6 @@ export const evaluateProfileJobMatch = (
     matchedReasons.push(`Совпали навыки (${matchedSkills.length}): ${matchedSkills.slice(0, 3).join(', ')}`);
   }
 
-  // Detect missing skills based on job category / description
   let domainKey = 'it';
   if (jTitle.includes('закуп') || jTitle.includes('снабжен')) domainKey = 'procurement';
   else if (jTitle.includes('hr') || jTitle.includes('рекрут') || jTitle.includes('персонал')) domainKey = 'hr';
@@ -293,7 +313,6 @@ export const evaluateProfileJobMatch = (
     growthAdvice.push('Ваш набор навыков отлично покрывает требования данной вакансии');
   }
 
-  // 3. Salary Expectation Fit (max 15 pts)
   if (expectedSal > 0 && job.salary_min) {
     if (job.salary_min >= expectedSal * 0.9) {
       salaryScore = 15;
@@ -309,7 +328,6 @@ export const evaluateProfileJobMatch = (
     salaryScore = 12;
   }
 
-  // 4. Logistics & Location (Real backend values or computed address distances)
   const isRemote = job.employment_type === 'remote' || jLoc.includes('удал');
   let distanceEstimate = '0 км (Удаленно)';
   let commuteEstimate = 'Удаленная работа';
@@ -337,7 +355,6 @@ export const evaluateProfileJobMatch = (
     }
   }
 
-  // 5. Profile Completeness Bonus (max 5 pts)
   if (profile.certificates && profile.certificates.length > 0) completenessScore += 2;
   if (profile.driving_categories && profile.driving_categories.length > 0) completenessScore += 2;
   if (profile.portfolio_url || profile.github_url) completenessScore += 1;
@@ -353,7 +370,7 @@ export const evaluateProfileJobMatch = (
     completenessScore
   };
 
-  return {
+  const evalResult: ProfileMatchEvaluation = {
     matchScore: finalScore,
     scoreBreakdown,
     matchedSkills,
@@ -363,6 +380,10 @@ export const evaluateProfileJobMatch = (
     commuteEstimate,
     distanceEstimate
   };
+
+  evalCache.set(cacheKey, evalResult);
+  if (evalCache.size > 2000) evalCache.clear();
+  return evalResult;
 };
 
 export const evaluateEmployerCandidateMatch = (
@@ -495,25 +516,39 @@ export const sortJobsByProfileMatch = (
   jobs: Job[],
   profileOverride?: UserProfileData | null
 ): Job[] => {
+  if (!jobs || jobs.length === 0) return [];
   const profile = profileOverride !== undefined ? profileOverride : getSavedUserProfile();
   if (!profile || (!profile.position && (!profile.skills || profile.skills.length === 0))) {
     return jobs;
   }
-  return [...jobs].sort(
-    (a, b) => evaluateProfileJobMatch(b, profile).matchScore - evaluateProfileJobMatch(a, profile).matchScore
-  );
+  
+  const scores = new Map<string, number>();
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    const sc = j.match_score ?? evaluateProfileJobMatch(j, profile).matchScore;
+    scores.set(j.id, sc);
+  }
+
+  return [...jobs].sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0));
 };
 
 export const sortCandidatesByEmployerMatch = (
   candidates: Candidate[],
   profileOverride?: EmployerProfileData | null
 ): Candidate[] => {
+  if (!candidates || candidates.length === 0) return [];
   const profile = profileOverride !== undefined ? profileOverride : getSavedEmployerProfile();
   if (!profile || (!profile.target_position && (!profile.required_skills || profile.required_skills.length === 0))) {
     return candidates;
   }
-  return [...candidates].sort(
-    (a, b) => evaluateEmployerCandidateMatch(b, profile).matchScore - evaluateEmployerCandidateMatch(a, profile).matchScore
-  );
+
+  const scores = new Map<string, number>();
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    const sc = evaluateEmployerCandidateMatch(c, profile).matchScore;
+    scores.set(c.id, sc);
+  }
+
+  return [...candidates].sort((a, b) => (scores.get(b.id) || 0) - (scores.get(a.id) || 0));
 };
 

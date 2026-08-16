@@ -35,6 +35,8 @@ async def get_current_user(
         raise UnauthorizedException("User no longer exists")
     if not user.is_active:
         raise UnauthorizedException("User account is inactive")
+    if not user.is_email_verified:
+        raise UnverifiedUserException("Email не подтверждён. Пожалуйста, введите код подтверждения.")
 
     return user
 

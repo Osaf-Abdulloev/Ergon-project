@@ -113,6 +113,7 @@ api.interceptors.response.use(
 export const jobService = {
   getJobs: async (params?: {
     title?: string;
+    category?: string;
     location?: string;
     employment_type?: string;
     salary_min?: number;
@@ -145,6 +146,16 @@ export const jobService = {
     return response.data;
   },
 
+  updateJob: async (id: string, jobData: any): Promise<Job> => {
+    const response = await api.put<Job>(`/jobs/${id}`, jobData);
+    return response.data;
+  },
+
+  deleteJob: async (id: string): Promise<{ message: string }> => {
+    const response = await api.delete<{ message: string }>(`/jobs/${id}`);
+    return response.data;
+  },
+
   getJobCommute: async (jobId: string, originAddress?: string, transportMode = 'car') => {
     const response = await api.get(`/jobs/${jobId}/commute`, {
       params: { origin_address: originAddress, transport_mode: transportMode }
@@ -168,6 +179,8 @@ export const authService = {
       if (response.data.refresh_token) {
         localStorage.setItem('ergon_refresh_token', response.data.refresh_token);
       }
+
+      api.defaults.headers.common.Authorization = `Bearer ${token}`;
 
       try {
         const userRes = await api.get('/users/me');
@@ -330,8 +343,10 @@ export const applicationService = {
     return response.data;
   },
 
-  getEmployerApplications: async (statusFilter?: string) => {
-    const params = statusFilter && statusFilter !== 'all' ? { status: statusFilter } : {};
+  getEmployerApplications: async (statusFilter?: string, jobId?: string) => {
+    const params: any = {};
+    if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+    if (jobId) params.job_id = jobId;
     const response = await api.get('/applications/employer', { params });
     return response.data;
   },
@@ -371,6 +386,11 @@ export const candidateService = {
     limit?: number;
   }): Promise<PaginatedResponse<any>> => {
     const response = await api.get<PaginatedResponse<any>>('/users/workers', { params });
+    return response.data;
+  },
+
+  getCandidateProfile: async (userId: string): Promise<any> => {
+    const response = await api.get(`/users/workers/${userId}`);
     return response.data;
   },
 
@@ -542,4 +562,100 @@ export const telegramService = {
     return response.data;
   }
 };
+
+export const cvService = {
+  uploadCv: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('/cv/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return response.data;
+  },
+
+  getCvs: async () => {
+    const response = await api.get('/cv');
+    return response.data;
+  },
+
+  getCvStatus: async (cvId: string) => {
+    const response = await api.get(`/cv/${cvId}/status`);
+    return response.data;
+  },
+
+  getCvSuggestions: async (cvId: string) => {
+    const response = await api.get(`/cv/${cvId}/suggestions`);
+    return response.data;
+  },
+
+  confirmSuggestions: async (suggestionId: string, acceptedFields: string[], customOverrides?: Record<string, any>) => {
+    const response = await api.post(`/cv/suggestions/${suggestionId}/confirm`, {
+      accepted_fields: acceptedFields,
+      custom_overrides: customOverrides
+    });
+    return response.data;
+  },
+
+  rejectSuggestions: async (suggestionId: string) => {
+    const response = await api.post(`/cv/suggestions/${suggestionId}/reject`);
+    return response.data;
+  }
+};
+
+export const resumeService = {
+  getResumes: async (status?: string) => {
+    const response = await api.get('/resumes', { params: { status } });
+    return response.data;
+  },
+
+  getResume: async (id: string) => {
+    const response = await api.get(`/resumes/${id}`);
+    return response.data;
+  },
+
+  createResume: async (data: { title?: string; target_position?: string; content?: any }) => {
+    const response = await api.post('/resumes', data);
+    return response.data;
+  },
+
+  updateResume: async (id: string, data: { title?: string; target_position?: string; content?: any; status?: string }) => {
+    const response = await api.put(`/resumes/${id}`, data);
+    return response.data;
+  },
+
+  publishResume: async (id: string) => {
+    const response = await api.post(`/resumes/${id}/publish`);
+    return response.data;
+  },
+
+  duplicateResume: async (id: string) => {
+    const response = await api.post(`/resumes/${id}/duplicate`);
+    return response.data;
+  },
+
+  setDefaultResume: async (id: string) => {
+    const response = await api.post(`/resumes/${id}/set-default`);
+    return response.data;
+  },
+
+  deleteResume: async (id: string) => {
+    const response = await api.delete(`/resumes/${id}`);
+    return response.data;
+  }
+};
+
+export const fileService = {
+  uploadFile: async (file: File, folder: string = 'general'): Promise<{ id: string; url: string; file_url: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', folder);
+    const response = await api.post<{ id: string; url: string; file_url: string }>('/files/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  }
+};
+
 

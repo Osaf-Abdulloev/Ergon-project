@@ -25,6 +25,9 @@ class ConflictException(AppException):
     def __init__(self, detail: str = "Resource conflict"):
         super().__init__(detail=detail, status_code=status.HTTP_409_CONFLICT)
 
+from typing import Any
+
 class UnverifiedUserException(AppException):
-    def __init__(self, detail: str = "Email verification required"):
+    def __init__(self, detail: Any = "Email verification required"):
         super().__init__(detail=detail, status_code=status.HTTP_403_FORBIDDEN)
+
